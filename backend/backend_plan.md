@@ -48,8 +48,8 @@ Decisions already agreed:
 
 **Goal:** live sim telemetry drives canonical `device_update` events; backend can publish control commands back to the sim.
 
-- [x] Add `backend/app/mqtt_client.py` and `backend/app/stream_hub.py`: `paho` client with `loop_start()`, subscribe `campus/lab1/#` (ignore `control/#`), JSON parse + guardrail sanitize + feed correlation window. WebSocket route deferred to Phase 6 per decision.
-- [x] Canonical ID map: `smart_lock_01 ↔ door_lock_01`, `rfid_scanner_01 ↔ rfid_01`, `air_quality_01 ↔ aq_sensor_01`, `power_meter_01 ↔ meter_01`, `decoy_twin_01` virtual only; `cctv_01` internal evidence.
+- [x] Add `backend/app/mqtt_client.py` and `backend/app/stream_hub.py`: `paho` client with `loop_start()`, subscribe `campus/lab1/#` (ignore `control/#`), JSON parse + guardrail sanitize + feed correlation window. Inbound frames schedule the Agent/HITL pipeline on a serialized background worker so raw Red Team MQTT drives the dashboard without blocking Paho's network thread.
+- [x] Canonical ID map: `smart_lock_01 ↔ door_lock_01`, `rfid_scanner_01 ↔ rfid_01`, `air_quality_01 ↔ aq_sensor_01`, `power_meter_01 ↔ meter_01`, `decoy_twin_01 ↔ decoy_twin_01`; `cctv_01` stays internal evidence.
 - [x] Maintain device registry mirroring frontend `INITIAL_DEVICES` (`normal`/`warning`/`quarantined`/`decoy`, metrics, `last_updated`) and broadcast `device_update` on every telemetry message.
 - [x] Add `publish_control(canonical_id, action)` → `campus/lab1/control/{sim_id}` with `{"action": "QUARANTINE|DECOY|RESTORE|NORMAL"}`.
 - [x] Wire connect/disconnect into `main.py` lifespan.
@@ -70,7 +70,7 @@ Decisions already agreed:
 **Goal:** low-risk auto actions, high-risk pending approvals, approval publishes containment.
 
 - [x] Add `backend/app/hitl_engine.py`: `handle_signals()` consumes `AgentResult`, auto-executes low-risk actions (warning + rate_limited/drop_sample flags + `AUTO_ACTION_EXECUTED` audit) and queues high-risk containment as pending `ApprovalRequest` targeting the first correlated device with `HITL_APPROVAL_REQUESTED` audit.
-- [x] `decide(approval_id, decision)`: on approve publish `QUARANTINE` then `DECOY` to the target sim device, mark target quarantined, activate `decoy_twin_01` with `active_traps=1`/`captured_payloads=0`, update approval/incident, write `APPROVAL_APPROVED` + `DECOY_ACTIVATED` audits; on reject only update records and write `APPROVAL_REJECTED`.
+- [x] `decide(approval_id, decision)`: on approve publish `QUARANTINE` to the target device and `DECOY` to the separate `decoy_twin_01`, mark the target quarantined, activate the twin with `active_traps=1`/`captured_payloads=0`, update approval/incident, and write `APPROVAL_APPROVED` + `DECOY_ACTIVATED` audits; on reject only update records and write `APPROVAL_REJECTED`.
 - [x] Broadcast `new_approval`, `new_incident`, `device_update` and `audit_entry` for every state transition.
 - [x] Add `backend/tests/test_hitl_engine.py` with a fake MQTT publisher.
 - [x] Verify: `python -m pytest -q backend/tests` → green with fake publisher; live sim console check deferred to Phase 8 (broker unavailable locally).
@@ -90,8 +90,8 @@ Decisions already agreed:
 
 **Goal:** live mode matches mock mode for the agent toggle; setup is documented.
 
-- [x] In `frontend/src/api/client.ts`, make `setAgentMode(enabled)` POST `{ enabled }` to `/api/agent/mode`; kept the exported name and `(enabled: boolean) => void` signature as the single seam. Mock mode still updates local state/audit; live mode logs POST failures without reverting the local toggle.
-- [x] In `frontend/src/pages/CommandCenter.tsx`, change `toggleAgent` to `void setAgentMode(next)`.
+- [x] In `frontend/src/api/client.ts`, make `setAgentMode(enabled)` await `POST /api/agent/mode`; mock mode uses the same promise contract.
+- [x] In `frontend/src/pages/CommandCenter.tsx`, wait for mode acknowledgement, disable attack buttons during the transition, and surface live connection errors.
 - [x] Add a concise backend setup + environment + lab-isolation section to `README.md`, including the REST/WS contract, live frontend env values, and the 3-step demo.
 - [x] Verify: `npm run typecheck` and `npm run build`; live-mode toggle is audited by `POST /api/agent/mode`.
 
@@ -99,12 +99,12 @@ Decisions already agreed:
 
 **Goal:** the 3-minute qualification demo works against live services.
 
-- [ ] Full stack up: Mosquitto, sim devices, backend, frontend with `VITE_USE_MOCK_DATA=false` — deferred locally: Docker/Mosquitto are not installed. See handoff below.
-- [x] `python -m pytest -q backend/tests` → **54 passed**.
+- [x] Full service path verified with Mosquitto, sim devices, backend REST/WebSocket and live frontend contract against direct Gemini using a rotated local-only key; the same smoke also passes with the local OpenAI-compatible test provider.
+- [x] `python -m pytest -q backend/tests` → **61 passed**.
 - [x] Trigger all three attacks via `POST /api/sim/trigger`; WS client receives all four event types; approval decision activates quarantine/decoy in backend state.
-- [ ] Confirm sim console prints `QUARANTINE`/`DECOY` — requires the live broker/sim; deferred to handoff.
+- [x] Confirm sim console prints `door_lock_01 -> QUARANTINED` and `decoy_twin_01 -> DECOY`.
 - [x] Persistence verified by reopening the same SQLite DB in a fresh FastAPI app instance; live server restart deferred.
-- [ ] Rehearse demo: Bypassed → Coordinated Breach; Active → Prompt Injection; Coordinated Breach → Approve → Decoy Twin + Audit Log — manual handoff.
+- [x] Automated REST/WebSocket rehearsal: Bypassed → Coordinated Breach; Active → Prompt Injection; second Coordinated Breach inside 60s → Approve → separate Decoy Twin + Audit Log. Manual browser rehearsal remains for handoff.
 - [x] Failure path: simulated `LLMUnavailable` returns `503` + `SYSTEM` audit `LLM_UNAVAILABLE`, with no incident/approval created.
 
 ### Handoff: remaining manual live-demo steps

@@ -15,13 +15,18 @@ client.loop_start()
 
 def attack_coordinated_intrusion():
     ts = datetime.now(timezone.utc).isoformat()
-    print("[!] Launching Coordinated Intrusion (CCTV Drop + Unauthorized Door Unlock)...")
+    print("[!] Launching Coordinated Intrusion (CCTV Drop + Door Unlock + Port Scan)...")
     client.publish("campus/lab1/cctv_cam", json.dumps({
         "device_id": "cctv_01", "heartbeat": "OFFLINE", "fps": 0, "state": "NORMAL", "timestamp": ts
     }), qos=1)
     time.sleep(0.5)
     client.publish("campus/lab1/door_lock", json.dumps({
         "device_id": "door_lock_01", "status": "UNLOCKED", "last_rfid": "UNAUTHORIZED_BYPASS", "state": "NORMAL", "timestamp": ts
+    }), qos=1)
+    time.sleep(0.5)
+    client.publish("campus/lab1/smart_meter", json.dumps({
+        "device_id": "meter_01", "power_kw": 2.1, "network_conns": 148,
+        "anomaly_flag": "PORT_SCAN_SUBNET_10.0.4.0/24", "state": "NORMAL", "timestamp": ts
     }), qos=1)
     print("[+] Attack sent.")
 
@@ -50,7 +55,7 @@ def attack_lateral_movement():
     print("[+] Burst sent.")
 
 def test_control_command():
-    dev = input("Device ID (e.g., door_lock_01, aq_sensor_01, meter_01): ").strip()
+    dev = input("Device ID (e.g., door_lock_01, aq_sensor_01, decoy_twin_01): ").strip()
     act = input("Action (QUARANTINE / DECOY / RESTORE): ").strip().upper()
     client.publish(f"campus/lab1/control/{dev}", json.dumps({"action": act}), qos=1)
     print(f"[+] Sent {act} to {dev}")
@@ -58,7 +63,7 @@ def test_control_command():
 try:
     while True:
         print("\n=== RED TEAM CONTROL PANEL ===")
-        print("[1] Coordinated Intrusion (CCTV Drop + Forced Door Unlock)")
+        print("[1] Coordinated Intrusion (CCTV Drop + Door Unlock + Port Scan)")
         print("[2] Sensor Spoofing + Prompt Injection (Rule 8)")
         print("[3] Smart Meter Lateral Movement (Port Scan)")
         print("[4] Test Agent Control Command (Quarantine / Decoy / Restore)")

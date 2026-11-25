@@ -3,6 +3,9 @@
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import hashlib
+import json
+import threading
 from typing import Any, Literal, Mapping
 
 from backend.app.schemas import AttackCategory, Severity
@@ -41,6 +44,7 @@ class CorrelationWindow:
         self.window_seconds = window_seconds
         self._records: deque[_Record] = deque()
         self._last_emitted: dict[str, datetime] = {}
+        self._lock = threading.RLock()
 
     @staticmethod
     def _parse_timestamp(value: Any) -> datetime:
@@ -74,14 +78,20 @@ class CorrelationWindow:
             injection_detected=injection_detected,
             sanitized_excerpt=sanitized_excerpt,
         )
-        self._records.append(record)
-        self._prune(record.timestamp)
+        with self._lock:
+            self._records.append(record)
+            self._prune(record.timestamp)
 
     def clear(self) -> None:
-        self._records.clear()
-        self._last_emitted.clear()
+        with self._lock:
+            self._records.clear()
+            self._last_emitted.clear()
 
     def evaluate(self, reference: datetime | None = None) -> list[Signal]:
+        with self._lock:
+            return self._evaluate_locked(reference)
+
+    def _evaluate_locked(self, reference: datetime | None = None) -> list[Signal]:
         if not self._records:
             return []
         reference = reference or self._records[-1].timestamp
@@ -108,6 +118,7 @@ class CorrelationWindow:
                         sanitized_excerpt=record.sanitized_excerpt,
                     ),
                     reference,
+                    self._fingerprint("prompt_injection", record),
                 )
 
             if record.canonical_id == "air_quality_01" and (
@@ -128,6 +139,7 @@ class CorrelationWindow:
                         auto_execute=True,
                     ),
                     reference,
+                    self._fingerprint("sensor_spoofing", record),
                 )
 
         unlocks = [r for r in records if self._is_unlock(r.payload)]
@@ -172,6 +184,9 @@ class CorrelationWindow:
                     auto_execute=False,
                 ),
                 reference,
+                self._fingerprint(
+                    "coordinated_intrusion", unlocks[-1], port_scans[-1]
+                ),
             )
         elif port_scans:
             self._emit(
@@ -188,6 +203,7 @@ class CorrelationWindow:
                     auto_execute=True,
                 ),
                 reference,
+                self._fingerprint("anomalous_traffic", port_scans[-1]),
             )
 
         return signals
@@ -198,18 +214,39 @@ class CorrelationWindow:
         cutoff = reference - timedelta(seconds=self.window_seconds)
         while self._records and self._records[0].timestamp < cutoff:
             self._records.popleft()
+        self._last_emitted = {
+            key: emitted_at
+            for key, emitted_at in self._last_emitted.items()
+            if emitted_at >= cutoff
+        }
 
     def _emit(
-        self, signals: list[Signal], signal: Signal, reference: datetime
+        self,
+        signals: list[Signal],
+        signal: Signal,
+        reference: datetime,
+        event_key: str,
     ) -> None:
-        key = f"{signal.category.value}:{','.join(signal.device_ids)}"
-        last = self._last_emitted.get(key)
-        if last is not None and reference - last < timedelta(
-            seconds=self.window_seconds
-        ):
+        if event_key in self._last_emitted:
             return
-        self._last_emitted[key] = reference
+        self._last_emitted[event_key] = reference
         signals.append(signal)
+
+    @staticmethod
+    def _fingerprint(kind: str, *records: _Record) -> str:
+        """Deduplicate MQTT echoes without suppressing a later real attack."""
+        evidence = [
+            {
+                "timestamp": record.timestamp.isoformat(),
+                "canonical_id": record.canonical_id,
+                "topic": record.topic,
+                "payload": record.payload,
+            }
+            for record in records
+        ]
+        serialized = json.dumps(evidence, sort_keys=True, default=str)
+        digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+        return f"{kind}:{digest}"
 
     @staticmethod
     def _spoof_reasons(payload: Mapping[str, Any]) -> list[str]:

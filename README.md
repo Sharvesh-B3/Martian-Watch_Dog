@@ -26,12 +26,12 @@ pip install -r backend/requirements.txt
 Create a root-level `.env` (do not commit it) using `backend/.env.example` as the template. Required values:
 
 - `MQTT_HOST=127.0.0.1`, `MQTT_PORT=1883`, `MQTT_TOPIC_PREFIX=campus/lab1`
-- `LLM_PROVIDER=openai` with `ROUTER_BASE_URL`, `ROUTER_MODEL`, and `ROUTER_API_KEY`
+- `LLM_PROVIDER=gemini` with `GEMINI_API_KEY` and `GEMINI_MODEL=gemini-3.5-flash-lite`
 - `DB_PATH=backend/data/watchdog.db`
 - `CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173"]`
 - `WINDOW_SECONDS=60`
 
-The default provider is an OpenAI-compatible router (OpenRouter is the tested endpoint; `openrouter/free` is the tested model). `LLM_PROVIDER=local` switches to an OpenAI-compatible local endpoint via `LOCAL_LLM_BASE_URL`. Missing provider settings fail startup fast; a runtime LLM failure returns `503` and writes a `SYSTEM` audit entry `LLM_UNAVAILABLE` — no fabricated explanation is created.
+The default provider is the direct Gemini API with structured JSON output. `LLM_PROVIDER=local` switches to an OpenAI-compatible local endpoint via `LOCAL_LLM_BASE_URL`. Missing provider settings fail startup fast; a runtime LLM failure returns `503` and writes a `SYSTEM` audit entry `LLM_UNAVAILABLE` — no fabricated explanation is created.
 
 Start the API:
 
@@ -40,6 +40,9 @@ uvicorn backend.app.main:app --reload --port 8000
 ```
 
 ## 3. Simulator and frontend
+
+Start the broker and the six-device simulator (five dashboard nodes plus the
+internal CCTV correlation signal):
 
 ```bash
 docker compose up -d mosquitto
@@ -62,6 +65,17 @@ VITE_WS_URL=ws://localhost:8000/api/stream
 VITE_USE_MOCK_DATA=false
 ```
 
+Dashboard attack buttons call `POST /api/sim/trigger`. Raw MQTT attacks enter
+the same correlation → Agent → HITL pipeline:
+
+```bash
+python sim/attacks/red_team.py
+```
+
+Option 1 emits CCTV loss, an unauthorized door unlock and port-scan evidence as
+one coordinated intrusion. Approved containment quarantines `door_lock_01` and
+activates the separate `decoy_twin_01` simulator.
+
 ## 4. Integration contract
 
 - `GET /health`
@@ -78,6 +92,9 @@ VITE_USE_MOCK_DATA=false
 1. Toggle Agent **BYPASSED**, trigger Coordinated Intrusion → unmitigated incident plus `UNMITIGATED_BREACH` audit.
 2. Toggle Agent **ACTIVE**, trigger Prompt Injection → guardrail flags the payload, low-risk auto action emits a warning and audit.
 3. Trigger Coordinated Intrusion, approve the pending request → `QUARANTINE` and `DECOY` appear in the sim console, Decoy Twin becomes active, and approval/decoy audits appear in the log.
+
+Distinct breaches inside the same 60-second correlation window are emitted as
+separate incidents; duplicate MQTT echoes of one attack remain deduplicated.
 
 ## 6. Verification
 

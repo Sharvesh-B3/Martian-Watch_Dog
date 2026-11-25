@@ -1,7 +1,8 @@
 """FastAPI application for the Aegis Watchdog backend."""
 
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,9 +16,12 @@ from backend.app.audit_db import AuditDB
 from backend.app.config import get_settings
 from backend.app.correlation_window import CorrelationWindow
 from backend.app.hitl_engine import HitlEngine
-from backend.app.llm_client import build_llm_client
+from backend.app.llm_client import LLMUnavailable, build_llm_client
 from backend.app.mqtt_client import MqttBridge
+from backend.app.pipeline import run_pipeline
 from backend.app.stream_hub import StreamHub
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 hub = StreamHub()
@@ -38,12 +42,40 @@ async def lifespan(app: FastAPI):
     app.state.db = db
     app.state.agent = agent
     app.state.hitl = hitl
-    hub.bind_loop(asyncio.get_running_loop())
-    bridge.start()
+    loop = asyncio.get_running_loop()
+    pipeline_requested = asyncio.Event()
+
+    def schedule_pipeline() -> None:
+        loop.call_soon_threadsafe(pipeline_requested.set)
+
+    async def pipeline_worker() -> None:
+        while True:
+            await pipeline_requested.wait()
+            pipeline_requested.clear()
+            try:
+                await asyncio.to_thread(run_pipeline, app)
+            except LLMUnavailable as exc:
+                logger.error("MQTT-triggered reasoning unavailable: %s", exc)
+            except Exception:
+                logger.exception("MQTT-triggered pipeline failed")
+
+    hub.bind_loop(loop)
+    bridge.set_pipeline_callback(schedule_pipeline)
+    worker = asyncio.create_task(
+        pipeline_worker(), name="watchdog-telemetry-pipeline"
+    )
+    bridge_started = False
     try:
+        bridge.start()
+        bridge_started = True
         yield
     finally:
-        bridge.stop()
+        bridge.set_pipeline_callback(None)
+        if bridge_started:
+            bridge.stop()
+        worker.cancel()
+        with suppress(asyncio.CancelledError):
+            await worker
         hub.bind_loop(None)
         db.close()
 

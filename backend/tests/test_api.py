@@ -217,6 +217,39 @@ def test_agent_mode_repeat_is_noop(tmp_path: Path) -> None:
     )
 
 
+def test_three_step_demo_allows_second_distinct_breach(tmp_path: Path) -> None:
+    app, _, _ = make_app(tmp_path)
+    client = TestClient(app)
+
+    assert client.post(
+        "/api/agent/mode", json={"enabled": False}
+    ).status_code == 200
+    assert client.post(
+        "/api/sim/trigger", json={"attack_type": "coordinated_intrusion"}
+    ).status_code == 200
+    assert client.get("/api/approvals").json() == []
+
+    assert client.post(
+        "/api/agent/mode", json={"enabled": True}
+    ).status_code == 200
+    assert client.post(
+        "/api/sim/trigger", json={"attack_type": "prompt_injection"}
+    ).status_code == 200
+    assert client.post(
+        "/api/sim/trigger", json={"attack_type": "coordinated_intrusion"}
+    ).status_code == 200
+
+    incidents = client.get("/api/incidents").json()
+    assert len(incidents) == 3
+    assert sum(
+        incident["category"] == "coordinated_intrusion"
+        for incident in incidents
+    ) == 2
+    approvals = client.get("/api/approvals").json()
+    assert len(approvals) == 1
+    assert approvals[0]["status"] == "pending"
+
+
 def test_records_survive_a_fresh_app_instance(tmp_path: Path) -> None:
     app, _, _ = make_app(tmp_path)
     client = TestClient(app)

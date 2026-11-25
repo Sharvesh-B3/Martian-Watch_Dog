@@ -168,3 +168,40 @@ def test_same_signal_is_not_emitted_twice_within_window() -> None:
         signal.category == AttackCategory.COORDINATED_INTRUSION
         for signal in first + second
     ) == 1
+
+
+def test_distinct_attack_inside_window_is_emitted_again() -> None:
+    window = CorrelationWindow(60)
+    add_breach(window, BASE)
+    first = window.evaluate(BASE)
+
+    second_attack = BASE + timedelta(seconds=10)
+    add_breach(window, second_attack)
+    second = window.evaluate(second_attack)
+
+    assert sum(
+        signal.category == AttackCategory.COORDINATED_INTRUSION
+        for signal in first
+    ) == 1
+    assert sum(
+        signal.category == AttackCategory.COORDINATED_INTRUSION
+        for signal in second
+    ) == 1
+
+
+def test_mqtt_echo_with_same_evidence_is_deduplicated() -> None:
+    window = CorrelationWindow(60)
+    add_breach(window, BASE)
+    first = window.evaluate(BASE)
+
+    add_breach(window, BASE)
+    echoed = window.evaluate(BASE)
+
+    assert any(
+        signal.category == AttackCategory.COORDINATED_INTRUSION
+        for signal in first
+    )
+    assert not any(
+        signal.category == AttackCategory.COORDINATED_INTRUSION
+        for signal in echoed
+    )

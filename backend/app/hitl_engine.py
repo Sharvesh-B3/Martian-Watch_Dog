@@ -113,7 +113,7 @@ class HitlEngine:
     def _approve(self, approval: ApprovalRequest) -> ApprovalRequest | None:
         target = approval.target_device_id
         self._bridge.publish_control(target, "QUARANTINE")
-        self._bridge.publish_control(target, "DECOY")
+        self._bridge.publish_control("decoy_twin_01", "DECOY")
         self._bridge.set_device_status(target, DeviceStatus.QUARANTINED)
         self._bridge.set_device_status(
             "decoy_twin_01", DeviceStatus.DECOY, dict(DECOY_METRICS)

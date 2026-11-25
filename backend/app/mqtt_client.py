@@ -3,7 +3,7 @@
 import json
 import logging
 import threading
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from typing import Any
 
@@ -26,6 +26,7 @@ SIM_TO_CANONICAL = {
     "rfid_01": "rfid_scanner_01",
     "aq_sensor_01": "air_quality_01",
     "meter_01": "power_meter_01",
+    "decoy_twin_01": "decoy_twin_01",
 }
 CANONICAL_TO_SIM = {value: key for key, value in SIM_TO_CANONICAL.items()}
 
@@ -85,6 +86,7 @@ class MqttBridge:
         self._window = window
         self._lock = threading.RLock()
         self._devices = self._build_initial_devices()
+        self._pipeline_callback: Callable[[], None] | None = None
         self._client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2,
             client_id="aegis-watchdog-backend",
@@ -128,6 +130,12 @@ class MqttBridge:
             return
         if isinstance(payload, dict):
             self.handle_payload(message.topic, payload)
+            callback = self._pipeline_callback
+            if callback is not None:
+                try:
+                    callback()
+                except Exception:
+                    logger.exception("Failed to schedule telemetry pipeline")
 
     # ------------------------------- pipeline --------------------------------
 
@@ -156,6 +164,12 @@ class MqttBridge:
             f"{topic_suffix.lstrip('/')}"
         )
         self._client.publish(topic, json.dumps(payload), qos=1)
+
+    def set_pipeline_callback(
+        self, callback: Callable[[], None] | None
+    ) -> None:
+        """Set the non-blocking scheduler invoked after inbound MQTT frames."""
+        self._pipeline_callback = callback
 
     def publish_control(self, canonical_id: str, action: str) -> bool:
         """Publish a control command to the mapped sim device."""
@@ -227,7 +241,9 @@ class MqttBridge:
             self._merge_metrics(canonical_id, payload, metrics)
 
             sim_state = str(payload.get("state", "")).upper()
-            if sim_state == "QUARANTINED":
+            if canonical_id == "decoy_twin_01":
+                status = DeviceStatus.DECOY
+            elif sim_state == "QUARANTINED":
                 status = DeviceStatus.QUARANTINED
             elif sim_state == "DECOY_ACTIVE":
                 status = DeviceStatus.DECOY
@@ -273,6 +289,10 @@ class MqttBridge:
                 metrics["load_kw"] = payload["power_kw"]
             if "network_conns" in payload:
                 metrics["outbound_conns"] = payload["network_conns"]
+        elif canonical_id == "decoy_twin_01":
+            for key in ("active_traps", "captured_payloads"):
+                if key in payload:
+                    metrics[key] = payload[key]
 
     def _broadcast_device(self, device: DeviceNode) -> None:
         self._hub.publish(DeviceUpdateEvent(device=device))

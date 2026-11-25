@@ -13,6 +13,7 @@ device_states = {
     "aq_sensor_01": "NORMAL",
     "meter_01": "NORMAL",
     "cctv_01": "NORMAL",
+    "decoy_twin_01": "NORMAL",
 }
 
 def on_connect(client, userdata, flags, reason_code, properties):
@@ -69,6 +70,10 @@ try:
             ("cctv_01", "campus/lab1/cctv_cam", {
                 "device_id": "cctv_01", "heartbeat": "ONLINE", "fps": 30, "timestamp": ts
             }),
+            ("decoy_twin_01", "campus/lab1/decoy_twin", {
+                "device_id": "decoy_twin_01", "active_traps": 0,
+                "captured_payloads": 0, "timestamp": ts
+            }),
         ]
 
         for dev_id, topic, payload in telemetry:
@@ -77,6 +82,8 @@ try:
                 client.publish(topic, json.dumps({"device_id": dev_id, "state": "QUARANTINED", "timestamp": ts}), qos=1)
             elif state == "DECOY":
                 payload["state"] = "DECOY_ACTIVE"
+                if dev_id == "decoy_twin_01":
+                    payload["active_traps"] = 1
                 client.publish(topic, json.dumps(payload), qos=1)
             else:
                 payload["state"] = "NORMAL"

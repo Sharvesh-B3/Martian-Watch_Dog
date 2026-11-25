@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -117,6 +118,55 @@ def test_control_command_uses_mapped_sim_topic() -> None:
     assert client.published == [
         ("campus/lab1/control/door_lock_01", '{"action": "QUARANTINE"}', 1)
     ]
+
+    assert bridge.publish_control("decoy_twin_01", "DECOY") is True
+    assert client.published[-1] == (
+        "campus/lab1/control/decoy_twin_01",
+        '{"action": "DECOY"}',
+        1,
+    )
+
+
+def test_decoy_telemetry_keeps_virtual_node_separate_from_lock() -> None:
+    bridge, _, _ = make_bridge()
+
+    bridge.handle_payload(
+        "campus/lab1/decoy_twin",
+        {
+            "device_id": "decoy_twin_01",
+            "active_traps": 1,
+            "captured_payloads": 0,
+            "state": "DECOY_ACTIVE",
+            "timestamp": now_iso(),
+        },
+    )
+
+    devices = {device.id: device for device in bridge.device_snapshot()}
+    assert devices["decoy_twin_01"].status == DeviceStatus.DECOY
+    assert devices["decoy_twin_01"].metrics["active_traps"] == 1
+    assert devices["smart_lock_01"].status == DeviceStatus.NORMAL
+
+
+def test_inbound_mqtt_frame_schedules_detection_pipeline() -> None:
+    bridge, _, _ = make_bridge()
+    scheduled: list[bool] = []
+    bridge.set_pipeline_callback(lambda: scheduled.append(True))
+    message = SimpleNamespace(
+        topic="campus/lab1/air_quality",
+        payload=json.dumps(
+            {
+                "device_id": "aq_sensor_01",
+                "co2_ppm": 4500,
+                "temp_c": 68.5,
+                "state": "NORMAL",
+                "timestamp": now_iso(),
+            }
+        ).encode(),
+    )
+
+    bridge._on_message(None, None, message)
+
+    assert scheduled == [True]
 
 
 def test_injection_is_sanitized_and_feeds_correlation() -> None:

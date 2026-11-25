@@ -134,7 +134,7 @@ def test_approve_publishes_containment_and_activates_decoy(tmp_path: Path) -> No
     assert updated is not None and updated.status == "approved"
     assert client.published == [
         ("campus/lab1/control/door_lock_01", '{"action": "QUARANTINE"}', 1),
-        ("campus/lab1/control/door_lock_01", '{"action": "DECOY"}', 1),
+        ("campus/lab1/control/decoy_twin_01", '{"action": "DECOY"}', 1),
     ]
     devices = {device.id: device for device in bridge.device_snapshot()}
     assert devices["smart_lock_01"].status == DeviceStatus.QUARANTINED

@@ -33,7 +33,8 @@ def trigger_sim_attack(request: Request, body: TriggerRequest) -> Any:
             request.app.state.bridge.publish_telemetry(suffix, payload)
         except Exception as exc:  # broker may be down; in-process path still runs
             logger.warning("MQTT publish failed for %s: %s", suffix, exc)
-        request.app.state.bridge.handle_payload(f"campus/lab1/{suffix}", payload)
+        prefix = request.app.state.settings.MQTT_TOPIC_PREFIX.rstrip("/")
+        request.app.state.bridge.handle_payload(f"{prefix}/{suffix}", payload)
 
     try:
         run_pipeline(request.app)
