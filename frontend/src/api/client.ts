@@ -296,37 +296,35 @@ export async function fetchDashboardState(): Promise<DashboardState> {
 }
 
 /**
- * Single seam for the Agent Active/Bypassed control.
- * Mock mode keeps the demo state machine in sync; live mode POSTs to the
- * backend, which writes the authoritative SYSTEM audit entry.
+ * Single seam for the Agent Active/Bypassed control. Resolve only after the
+ * live backend acknowledges the change so attack triggers cannot race it.
  */
-export function setAgentMode(enabled: boolean) {
+export async function setAgentMode(
+  enabled: boolean
+): Promise<{ ok: boolean; enabled: boolean }> {
   if (!USE_MOCK_DATA) {
-    void fetch(`${API_BASE}/agent/mode`, {
+    const response = await fetch(`${API_BASE}/agent/mode`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled }),
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Agent mode update failed with ${response.status}`);
-        }
-      })
-      .catch((error: unknown) => {
-        console.error('Agent mode update failed', error);
-      });
-    return;
+    });
+    if (!response.ok) {
+      throw new Error(`Agent mode update failed with ${response.status}`);
+    }
+    return (await response.json()) as { ok: boolean; enabled: boolean };
   }
 
-  if (mock.agentEnabled === enabled) return;
-  mock.agentEnabled = enabled;
-  addAudit(
-    'SYSTEM',
-    enabled ? 'AGENT_ACTIVATED' : 'AGENT_BYPASSED',
-    enabled
-      ? 'Watchdog reasoning and containment restored.'
-      : 'Watchdog bypassed for control demo; attacks will go unmitigated.'
-  );
+  if (mock.agentEnabled !== enabled) {
+    mock.agentEnabled = enabled;
+    addAudit(
+      'SYSTEM',
+      enabled ? 'AGENT_ACTIVATED' : 'AGENT_BYPASSED',
+      enabled
+        ? 'Watchdog reasoning and containment restored.'
+        : 'Watchdog bypassed for control demo; attacks will go unmitigated.'
+    );
+  }
+  return { ok: true, enabled };
 }
 
 export async function decideApproval(

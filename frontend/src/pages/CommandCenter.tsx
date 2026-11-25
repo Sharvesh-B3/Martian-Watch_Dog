@@ -35,6 +35,8 @@ export default function CommandCenter() {
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [agentEnabled, setAgentEnabled] = useState(true);
+  const [agentModePending, setAgentModePending] = useState(false);
+  const [controlError, setControlError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -71,24 +73,39 @@ export default function CommandCenter() {
     };
   }, []);
 
-  const toggleAgent = () => {
+  const toggleAgent = async () => {
     const next = !agentEnabled;
-    setAgentEnabled(next);
-    void setAgentMode(next);
+    setAgentModePending(true);
+    setControlError(null);
+    try {
+      const response = await setAgentMode(next);
+      setAgentEnabled(response.enabled);
+    } catch (error: unknown) {
+      console.error('Agent mode update failed', error);
+      setControlError('Could not update Agent mode. Check the backend connection.');
+    } finally {
+      setAgentModePending(false);
+    }
   };
 
   const handleDecision = (
     approval: ApprovalRequest,
     decision: ApprovalDecision
   ) => {
+    setControlError(null);
     void decideApproval(approval.id, decision).catch((error: unknown) => {
       console.error('Approval decision failed', error);
+      setControlError('Approval decision failed. Check the backend connection.');
     });
   };
 
   const handleTriggerAttack = (attackType: AttackType) => {
+    setControlError(null);
     void triggerSimAttack(attackType).catch((error: unknown) => {
       console.error('Attack trigger failed', error);
+      setControlError(
+        'Attack trigger failed. Verify the backend and Gemini are available.'
+      );
     });
   };
 
@@ -108,19 +125,27 @@ export default function CommandCenter() {
             Isolated Docker MQTT Lab • Sense → Think → Act → Explain • HITL
             Enforced • {USE_MOCK_DATA ? 'MOCK LAB' : 'LIVE BACKEND'}
           </p>
+          {controlError && (
+            <p className="text-xs text-rose-300 mt-1" role="alert">
+              {controlError}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={toggleAgent}
+            onClick={() => void toggleAgent()}
+            disabled={agentModePending}
             className={`px-3 py-1.5 rounded text-xs font-semibold border transition ${
               agentEnabled
                 ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300'
                 : 'bg-rose-600/20 border-rose-500 text-rose-300'
-            }`}
+            } disabled:cursor-wait disabled:opacity-60`}
           >
-            {agentEnabled
+            {agentModePending
+              ? '◌ UPDATING AGENT MODE...'
+              : agentEnabled
               ? '● WATCHDOG AGENT: ACTIVE'
               : '○ WATCHDOG AGENT: BYPASSED'}
           </button>
@@ -130,21 +155,24 @@ export default function CommandCenter() {
           <button
             type="button"
             onClick={() => handleTriggerAttack('spoof_sensor')}
-            className="px-3 py-1.5 rounded text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300"
+            disabled={agentModePending}
+            className="px-3 py-1.5 rounded text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 disabled:cursor-wait disabled:opacity-60"
           >
             ⚡ Sim: Spoof Sensor
           </button>
           <button
             type="button"
             onClick={() => handleTriggerAttack('coordinated_intrusion')}
-            className="px-3 py-1.5 rounded text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-700 text-rose-300"
+            disabled={agentModePending}
+            className="px-3 py-1.5 rounded text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-700 text-rose-300 disabled:cursor-wait disabled:opacity-60"
           >
             ⚡ Sim: Coordinated Breach
           </button>
           <button
             type="button"
             onClick={() => handleTriggerAttack('prompt_injection')}
-            className="px-3 py-1.5 rounded text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-700 text-purple-300"
+            disabled={agentModePending}
+            className="px-3 py-1.5 rounded text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-700 text-purple-300 disabled:cursor-wait disabled:opacity-60"
           >
             ⚡ Sim: Prompt Injection
           </button>
