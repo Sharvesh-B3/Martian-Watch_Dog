@@ -8,7 +8,7 @@ Decisions already agreed:
 - FastAPI + `paho-mqtt` + SQLite (stdlib `sqlite3`) + Pydantic; no extra infrastructure services.
 - `backend/app/schemas.py` is 1:1 with `frontend/src/types/watchdog.ts`.
 - Live Agent Active/Bypassed toggle: add `POST /api/agent/mode`; `frontend/src/api/client.ts:setAgentMode()` posts to it.
-- LLM is required: direct Gemini API via `httpx` (structured JSON with a response schema) now, with a switchable OpenAI-compatible local endpoint for later (`LLM_PROVIDER=gemini|local`, default `GEMINI_MODEL=gemini-3.5-flash-lite`; `gemini-2.5-flash` is no longer available to new users). The model remains configurable with `GEMINI_MODEL`. Missing config fails fast at startup; failed reasoning returns `503` + a `SYSTEM` audit entry. No fabricated offline explanation. The former OpenAI-compatible router provider was removed.
+- LLM is required: direct Gemini API via `httpx` (structured JSON with a response schema) now, with a switchable OpenAI-compatible local endpoint for later (`LLM_PROVIDER=gemini|local`, default `GEMINI_MODEL=gemini-3.5-flash-lite`; `gemini-2.5-flash` is no longer available to new users). The model remains configurable with `GEMINI_MODEL`. Missing config fails fast at startup; failed reasoning returns `503` + a `SYSTEM` audit entry. No fabricated offline explanation. Transient `429`/`5xx` and network errors get up to 3 attempts with exponential backoff (`0.5s`, `1s`); auth/parse errors fail immediately. The former OpenAI-compatible router provider was removed.
 - HITL: low-risk actions auto-execute; high-risk quarantine/decoy requires approval and publishes MQTT control commands.
 - Role 1 device IDs/topics differ from the frontend contract; the backend absorbs this with a canonical ID map. `cctv_01` stays internal as correlation evidence.
 - Focused `pytest` suite for guardrail, correlation, HITL and schema parity.
@@ -40,7 +40,7 @@ Decisions already agreed:
 **Goal:** untrusted telemetry is sanitized before reasoning; multi-device attack rules fire inside a 60s window.
 
 - [x] Add `backend/app/guardrail.py`: detect and strip instruction overrides (`IGNORE ALL PREVIOUS INSTRUCTIONS`, `ignore previous instructions`, role/system impersonation); return `(clean_payload, detected, sanitized_excerpt)`; add `wrap_untrusted()` that delimits telemetry as untrusted data for the LLM prompt.
-- [x] Add `backend/app/correlation_window.py`: timestamp-pruned deque per zone/device; emit signals for coordinated intrusion (door `UNLOCKED`/`UNAUTHORIZED_BYPASS` with no RFID badge plus meter `network_conns > 50` / port-scan flag within 60s), sensor spoofing (CO2 > 1000 or temp outside 10-35 C) and injected payload markers; dedupe within the window.
+- [x] Add `backend/app/correlation_window.py`: timestamp-pruned deque per zone/device; emit signals for coordinated intrusion (door `UNLOCKED`/`UNAUTHORIZED_BYPASS` with no RFID badge plus meter `network_conns > 50` / port-scan flag within 60s), sensor spoofing (CO2 > 1000 or temp outside 10-35 C) and injected payload markers; dedupe within the window; consumed signals clear the window so repeated simulated attacks stay independent.
 - [x] Add `backend/tests/test_guardrail.py` and `backend/tests/test_correlation_window.py`.
 - [x] Verify: `python -m pytest -q backend/tests` → 19 passed.
 
@@ -52,18 +52,18 @@ Decisions already agreed:
 - [x] Canonical ID map: `smart_lock_01 ↔ door_lock_01`, `rfid_scanner_01 ↔ rfid_01`, `air_quality_01 ↔ aq_sensor_01`, `power_meter_01 ↔ meter_01`, `decoy_twin_01` virtual only; `cctv_01` internal evidence.
 - [x] Maintain device registry mirroring frontend `INITIAL_DEVICES` (`normal`/`warning`/`quarantined`/`decoy`, metrics, `last_updated`) and broadcast `device_update` on every telemetry message.
 - [x] Add `publish_control(canonical_id, action)` → `campus/lab1/control/{sim_id}` with `{"action": "QUARANTINE|DECOY|RESTORE|NORMAL"}`.
-- [x] Wire connect/disconnect into `main.py` lifespan.
+- [x] Wire async connect/disconnect into `main.py` lifespan; backend starts even when the broker is unavailable and paho retries in the background.
 - [x] Verify: `python -m pytest -q backend/tests` → 24 passed, including ID mapping, metric mapping, status authority, control publishing and injection sanitization. Live broker+sim check deferred to Phase 8 (Docker/Mosquitto unavailable locally).
 
 ## Phase 4 — LLM reasoning adapter
 
 **Goal:** structured Sense → Think → Act → Explain JSON from the direct Gemini API, with a local-provider switch and explicit failure behaviour.
 
-- [x] Add `backend/app/llm_client.py`: provider adapter. Gemini via `httpx` POST to `{GEMINI_BASE_URL}/models/{GEMINI_MODEL}:generateContent` with `x-goog-api-key`, `systemInstruction`, `contents`, and JSON `responseMimeType`/`responseSchema`; local via `{LOCAL_LLM_BASE_URL}/chat/completions`; timeout; raise `LLMUnavailable` on failure.
+- [x] Add `backend/app/llm_client.py`: provider adapter. Gemini via `httpx` POST to `{GEMINI_BASE_URL}/models/{GEMINI_MODEL}:generateContent` with `x-goog-api-key`, `systemInstruction`, `contents`, and JSON `responseMimeType`/`responseSchema`; local via `{LOCAL_LLM_BASE_URL}/chat/completions`; timeout; bounded retry for transient `429`/`500`/`502`/`503`/`504` and transport errors (3 attempts, exponential backoff); raise `LLMUnavailable` on final failure.
 - [x] Add `backend/app/agent.py`: deterministic prefilter decides whether to call the LLM; send sanitized telemetry + correlation signals framed as untrusted data; validate returned JSON keys `sense`, `think`, `act`, `explain`, `severity`, `category`, `risk_level`, `auto_execute`; map to `Incident`.
 - [x] Bypassed mode path: explicit `UNMITIGATED_BREACH` audit + warning device updates, no AI explanation generated.
 - [x] Failure path: startup validates required env; runtime failure raises `LLMUnavailable` (API `503` + `SYSTEM` audit `LLM_UNAVAILABLE` wired in Phase 6); no incident is invented.
-- [x] Verify: mocked Gemini and local unit tests pass; `python -m pytest -q backend/tests` → **54 passed**. Live Gemini smoke passed with `gemini-3.5-flash-lite` and returned valid structured JSON; `gemini-2.5-flash` returned `404` as it is no longer available to new users.
+- [x] Verify: mocked Gemini and local unit tests pass; `python -m pytest -q backend/tests` → **58 passed**. Live Gemini smoke passed with `gemini-3.5-flash-lite` and returned valid structured JSON; `gemini-2.5-flash` returned `404` as it is no longer available to new users.
 
 ## Phase 5 — HITL enforcement and audit
 
@@ -100,7 +100,7 @@ Decisions already agreed:
 **Goal:** the 3-minute qualification demo works against live services.
 
 - [ ] Full stack up: Mosquitto, sim devices, backend, frontend with `VITE_USE_MOCK_DATA=false` — deferred locally: Docker/Mosquitto are not installed. See handoff below.
-- [x] `python -m pytest -q backend/tests` → **54 passed**.
+- [x] `python -m pytest -q backend/tests` → **58 passed**.
 - [x] Trigger all three attacks via `POST /api/sim/trigger`; WS client receives all four event types; approval decision activates quarantine/decoy in backend state.
 - [ ] Confirm sim console prints `QUARANTINE`/`DECOY` — requires the live broker/sim; deferred to handoff.
 - [x] Persistence verified by reopening the same SQLite DB in a fresh FastAPI app instance; live server restart deferred.

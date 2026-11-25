@@ -118,6 +118,22 @@ def test_coordinated_trigger_publishes_and_creates_pending_approval(
     )
 
 
+def test_repeated_coordinated_triggers_create_separate_approvals(
+    tmp_path: Path,
+) -> None:
+    app, _, _ = make_app(tmp_path)
+    client = TestClient(app)
+    body = {"attack_type": "coordinated_intrusion"}
+
+    assert client.post("/api/sim/trigger", json=body).status_code == 200
+    assert client.post("/api/sim/trigger", json=body).status_code == 200
+
+    assert len(client.get("/api/incidents").json()) == 2
+    approvals = client.get("/api/approvals").json()
+    assert len(approvals) == 2
+    assert {approval["status"] for approval in approvals} == {"pending"}
+
+
 def test_sensor_triggers_are_separate(tmp_path: Path) -> None:
     app, mqtt, _ = make_app(tmp_path)
     client = TestClient(app)

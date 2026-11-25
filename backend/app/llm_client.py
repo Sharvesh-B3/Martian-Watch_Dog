@@ -1,6 +1,7 @@
 """LLM provider adapter: direct Gemini API or local OpenAI-compatible endpoint."""
 
 import re
+import time
 from typing import Any, Protocol, cast, runtime_checkable
 
 import httpx
@@ -9,6 +10,9 @@ from pydantic import BaseModel
 from backend.app.config import Settings
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+GEMINI_MAX_ATTEMPTS = 3
+GEMINI_RETRY_BASE_SECONDS = 0.5
+GEMINI_RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 SYSTEM_INSTRUCTION = (
     "You are the reasoning engine of Aegis Watchdog, a campus IoT security agent. "
@@ -109,6 +113,15 @@ def _parse_decision(content: Any) -> AgentDecision:
     return AgentDecision.model_validate(content)
 
 
+def _is_transient(exc: Exception) -> bool:
+    """Return True for failures worth one more Gemini request."""
+    if isinstance(exc, httpx.TransportError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in GEMINI_RETRYABLE_STATUSES
+    return False
+
+
 class GeminiClient:
     def __init__(self, settings: Settings) -> None:
         self._api_key = cast(str, settings.GEMINI_API_KEY)
@@ -117,20 +130,25 @@ class GeminiClient:
 
     def reason(self, prompt: str) -> AgentDecision:
         url = f"{GEMINI_BASE_URL}/models/{self._model}:generateContent"
-        try:
-            response = httpx.post(
-                url,
-                json=_gemini_request_body(prompt),
-                headers={
-                    "x-goog-api-key": self._api_key,
-                    "Content-Type": "application/json",
-                },
-                timeout=self._timeout,
-            )
-            response.raise_for_status()
-            return _parse_decision(_extract_gemini_text(response.json()))
-        except Exception as exc:
-            raise LLMUnavailable(f"Gemini LLM reasoning failed: {exc}") from exc
+        for attempt in range(1, GEMINI_MAX_ATTEMPTS + 1):
+            try:
+                response = httpx.post(
+                    url,
+                    json=_gemini_request_body(prompt),
+                    headers={
+                        "x-goog-api-key": self._api_key,
+                        "Content-Type": "application/json",
+                    },
+                    timeout=self._timeout,
+                )
+                response.raise_for_status()
+                return _parse_decision(_extract_gemini_text(response.json()))
+            except Exception as exc:
+                if _is_transient(exc) and attempt < GEMINI_MAX_ATTEMPTS:
+                    time.sleep(GEMINI_RETRY_BASE_SECONDS * (2 ** (attempt - 1)))
+                    continue
+                raise LLMUnavailable(f"Gemini LLM reasoning failed: {exc}") from exc
+        raise LLMUnavailable("Gemini LLM reasoning failed: retries exhausted")
 
 
 class LocalOpenAIClient:

@@ -96,12 +96,14 @@ class MqttBridge:
     # ------------------------------ lifecycle -------------------------------
 
     def start(self) -> None:
-        self._client.connect(
+        # Async connect lets the API boot even when the lab broker is not up yet;
+        # paho's network loop keeps retrying in the background.
+        self._client.connect_async(
             self._settings.MQTT_HOST, self._settings.MQTT_PORT, 60
         )
         self._client.loop_start()
         self.emit_initial_devices()
-        logger.info("MQTT bridge connected to %s", self._settings.MQTT_HOST)
+        logger.info("MQTT bridge connecting to %s", self._settings.MQTT_HOST)
 
     def stop(self) -> None:
         self._client.loop_stop()

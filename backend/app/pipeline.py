@@ -12,14 +12,20 @@ def run_pipeline(app: FastAPI) -> None:
     if not signals:
         return
 
-    results = []
-    for signal in signals:
-        try:
-            results.append(app.state.agent.process(signal))
-        except LLMUnavailable as exc:
-            _audit_llm_failure(app, exc)
-            raise
-    app.state.hitl.handle_signals(results)
+    try:
+        results = []
+        for signal in signals:
+            try:
+                results.append(app.state.agent.process(signal))
+            except LLMUnavailable as exc:
+                _audit_llm_failure(app, exc)
+                raise
+        app.state.hitl.handle_signals(results)
+    finally:
+        # Each simulated trigger is an independent attack. Clearing after a
+        # consumed signal lets the next trigger correlate from a clean window,
+        # including after an LLM failure that the operator retries.
+        app.state.window.clear()
 
 
 def _audit_llm_failure(app: FastAPI, error: LLMUnavailable) -> None:

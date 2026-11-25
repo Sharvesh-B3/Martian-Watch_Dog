@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from backend.app.llm_client import (
+    GEMINI_MAX_ATTEMPTS,
     GeminiClient,
     LLMUnavailable,
     LocalOpenAIClient,
@@ -117,7 +118,10 @@ def test_gemini_client_accepts_fenced_json(monkeypatch) -> None:  # noqa: ANN001
 
 
 def test_gemini_failure_maps_to_llm_unavailable(monkeypatch) -> None:  # noqa: ANN001
+    calls: list[int] = []
+
     def fake_post(url: str, *, json: dict, headers: dict, timeout: float) -> FakeResponse:
+        calls.append(1)
         return FakeResponse(
             error=httpx.HTTPStatusError(
                 "401 Unauthorized",
@@ -131,6 +135,79 @@ def test_gemini_failure_maps_to_llm_unavailable(monkeypatch) -> None:  # noqa: A
 
     with pytest.raises(LLMUnavailable, match="401 Unauthorized"):
         client.reason("telemetry prompt")
+
+    assert len(calls) == 1  # auth failures must not be retried
+
+
+def test_gemini_retries_transient_503_then_succeeds(monkeypatch) -> None:  # noqa: ANN001
+    calls: list[int] = []
+    delays: list[float] = []
+
+    def fake_post(url: str, *, json: dict, headers: dict, timeout: float) -> FakeResponse:
+        calls.append(1)
+        if len(calls) == 1:
+            return FakeResponse(
+                error=httpx.HTTPStatusError(
+                    "503 Service Unavailable",
+                    request=httpx.Request("POST", url),
+                    response=httpx.Response(503),
+                )
+            )
+        return FakeResponse(gemini_payload())
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr("backend.app.llm_client.time.sleep", delays.append)
+    client = GeminiClient(gemini_settings())  # type: ignore[arg-type]
+
+    result = client.reason("telemetry prompt")
+
+    assert len(calls) == 2
+    assert delays == [0.5]
+    assert result.category == "prompt_injection"
+
+
+def test_gemini_stops_after_max_attempts_on_persistent_503(monkeypatch) -> None:  # noqa: ANN001
+    calls: list[int] = []
+    delays: list[float] = []
+
+    def fake_post(url: str, *, json: dict, headers: dict, timeout: float) -> FakeResponse:
+        calls.append(1)
+        return FakeResponse(
+            error=httpx.HTTPStatusError(
+                "503 Service Unavailable",
+                request=httpx.Request("POST", url),
+                response=httpx.Response(503),
+            )
+        )
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr("backend.app.llm_client.time.sleep", delays.append)
+    client = GeminiClient(gemini_settings())  # type: ignore[arg-type]
+
+    with pytest.raises(LLMUnavailable, match="503 Service Unavailable"):
+        client.reason("telemetry prompt")
+
+    assert len(calls) == GEMINI_MAX_ATTEMPTS
+    assert len(delays) == GEMINI_MAX_ATTEMPTS - 1
+
+
+def test_gemini_retries_transport_errors(monkeypatch) -> None:  # noqa: ANN001
+    calls: list[int] = []
+
+    def fake_post(url: str, *, json: dict, headers: dict, timeout: float) -> FakeResponse:
+        calls.append(1)
+        if len(calls) == 1:
+            raise httpx.ConnectError("connection reset")
+        return FakeResponse(gemini_payload())
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr("backend.app.llm_client.time.sleep", lambda _: None)
+    client = GeminiClient(gemini_settings())  # type: ignore[arg-type]
+
+    result = client.reason("telemetry prompt")
+
+    assert len(calls) == 2
+    assert result.category == "prompt_injection"
 
 
 @pytest.mark.parametrize(
