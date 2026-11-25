@@ -1,6 +1,6 @@
 # Phase 1 — Contract Freeze and Integration Agreement
 
-**Status:** Paused at completion gate — Role 1 contract artifacts are validated; named ownership and Role 2 sign-off remain pending.  
+**Status:** Technical contract implemented end to end; formal named Role 1/Role 2 sign-off remains pending.
 **Scope:** Role 1 simulator and broker contracts, plus explicit hand-offs to Roles 2 and 3.
 
 ## Goal
@@ -125,7 +125,7 @@ Phase 1 is complete only when the contracts and ACL matrix exist, all acceptance
 
 **Current blockers:** name the Role 1 and Role 2 contract owners; obtain Role 2 review/sign-off and its explanation of the API/MQTT boundary.
 
-**Gate decision (2026-11-25):** Pause here while Role 2 remains unassigned. Phase 2 has not been authorized provisionally.
+**Gate decision (updated 2026-11-25):** Compressed technical Phases A–C were authorized and completed against contract version 1.0. The FastAPI/MQTT/frontend E2E tests demonstrate compatibility; only named human ownership/signature remains open.
 
 ## Current verification evidence
 

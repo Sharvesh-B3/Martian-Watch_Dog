@@ -1,6 +1,6 @@
 # Phase 4 — HITL Containment and Decoy Twin Routing
 
-**Status:** Planned — starts after Phase 3 attack evidence is reliable.  
+**Status:** Superseded and completed by compressed Phase B — HITL controls, acknowledgements, quarantine, Decoy routing/capture, restore and reset passed live.
 **Scope:** Approved control handling, quarantine, acknowledgements, Decoy Twin activation, explicit simulated routing, restoration, and reset.
 
 ## Goal

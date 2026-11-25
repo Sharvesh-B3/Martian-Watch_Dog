@@ -1,6 +1,6 @@
 # Phase 3 — Attack Scenarios and MQTT Trigger Controller
 
-**Status:** Planned — starts only after stable Phase 2 normal telemetry.  
+**Status:** Superseded and completed by compressed Phase B — all three live scenarios and MQTT lifecycle behavior passed.
 **Scope:** Attack controller, three canonical scenarios, repeatable state transitions, and backend trigger hand-off.
 
 ## Goal

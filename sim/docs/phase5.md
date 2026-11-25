@@ -1,6 +1,6 @@
 # Phase 5 — Hardening, Automated Verification, and Observability
 
-**Status:** Planned — starts after the complete Phase 4 state machine works.  
+**Status:** Superseded by compressed Phase C — focused contract, ACL, isolation, restart, persistence and end-to-end MVP gates passed; optional exhaustive hardening is deferred.
 **Scope:** Automated tests, ACL/security checks, failure recovery, network isolation evidence, diagnostics, and regression protection.
 
 ## Goal

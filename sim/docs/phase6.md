@@ -1,6 +1,6 @@
 # Phase 6 — End-to-End Integration, Runbook, and Handoff
 
-**Status:** Planned — final Role 1 phase.  
+**Status:** Superseded and completed by compressed Phase C — live backend/frontend mode, focused E2E verifier, audit persistence and runbook are complete; human pitch rehearsal remains external.
 **Scope:** Live backend/frontend integration, repeatable demo, documentation, isolation evidence, ownership handoff, and final sign-off.
 
 ## Goal

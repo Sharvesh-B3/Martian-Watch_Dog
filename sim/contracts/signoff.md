@@ -3,7 +3,7 @@
 **Contract version under review:** 1.0  
 **Role 1 owner identifier:** Pending — intentionally kept generic  
 **Role 2 owner identifier:** Unassigned  
-**Overall status:** **Paused at Phase 1 gate pending Role 2 assignment/review**  
+**Overall status:** **Technical contract implemented and E2E-verified; named Role 1/Role 2 approval remains pending**
 **Approval rule:** No checked box may be inferred from repository access, silence, or implementation work.
 
 ## Review package
@@ -109,4 +109,4 @@
 - **Date:** `PENDING`
 - **Notes/change request:** `PENDING`
 
-Phase 2 may use these files for design exploration, but the formal Phase 1 completion gate remains open until both approval boxes are checked by assigned owners.
+Compressed technical Phases A–C are implemented and verified against version 1.0, including the API/MQTT/frontend path. Formal human sign-off remains open, and interface changes must return here for review until both approval boxes are checked by assigned owners.

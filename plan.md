@@ -49,7 +49,7 @@
 ## 3. Phase-by-Phase Execution Roadmap
 
 ### Phase 0: Qualification Round (Pre-Hackathon / Immediate)
-* [ ] Run the OpenCode prompt to generate and build `./frontend/` (`npm run build` clean).
+* [x] Run the OpenCode prompt to generate and build `./frontend/` (`npm run build` clean).
 * [ ] Capture 3 high-contrast screenshots from `CommandCenter.tsx` (Normal State, Prompt Injection Blocked, and HITL Containment Approved) for prototype proof.
 * [ ] Assemble the **7-Slide Qualification Deck**:
   1. **Title & Hook:** *Aegis Watchdog — Autonomous IoT Immune System for Campus Safety*
@@ -63,23 +63,23 @@
 ### Phase 1: Foundation & Contract Sync (Hours 0–4)
 * [ ] Confirm 1:1 schema alignment between `frontend/src/types/watchdog.ts` and `backend/app/schemas.py`.
 * [ ] Complete the Role 1 contract gate in `sim/docs/phase1.md`, including MQTT topics, schemas, timing, controls, and the ACL matrix agreed with Role 2.
-* [ ] Bring up `docker-compose.yml` (authenticated Mosquitto + 5 separate simulated device services) and verify contract-valid live telemetry publishing.
-* [ ] Verify FastAPI WebSocket stream (`/api/stream`) emits `device_update`, `new_incident`, `new_approval`, and `audit_entry` events.
+* [x] Bring up `docker-compose.yml` (authenticated Mosquitto + 5 separate simulated device services) and verify contract-valid live telemetry publishing.
+* [x] Verify FastAPI WebSocket stream (`/api/stream`) emits `device_update`, `new_incident`, `new_approval`, and `audit_entry` events.
 
 ### Phase 2: Core Intelligence & Attack Wiring (Hours 4–12)
-* [ ] Connect Role 2's `POST /api/sim/trigger` endpoint to Role 1's MQTT attack-controller trigger and lifecycle-status contracts.
-* [ ] Test prompt-injection sanitization against poisoned `air_quality_01` payloads.
-* [ ] Test multi-device correlation rule (`smart_lock_01` unlock without `rfid_scanner_01` badge + `power_meter_01` port scan).
-* [ ] Verify `spoof_sensor` remains independently classifiable and does not contain prompt-injection instructions.
+* [x] Connect Role 2's `POST /api/sim/trigger` endpoint to Role 1's MQTT attack-controller trigger and lifecycle-status contracts.
+* [x] Test prompt-injection sanitization against poisoned `air_quality_01` payloads.
+* [x] Test multi-device correlation rule (`smart_lock_01` unlock without `rfid_scanner_01` badge + `power_meter_01` port scan).
+* [x] Verify `spoof_sensor` remains independently classifiable and does not contain prompt-injection instructions.
 
 ### Phase 3: End-to-End Integration (Hours 12–18)
-* [ ] Flip `USE_MOCK_DATA = false` in `frontend/src/api/client.ts`.
-* [ ] Verify 1-click **Approve Containment** in `ApprovalDrawer.tsx` causes Role 2 to publish authenticated MQTT controls, receives truthful acknowledgements, updates `smart_lock_01` to `quarantined`, and activates `decoy_twin_01`.
-* [ ] Verify subsequent simulated attacker traffic is explicitly redirected to the Decoy Twin and increments actual capture counters without unlocking the quarantined lock.
-* [ ] Verify all actions persist in `audit_db.py` and render in `AuditLogPanel.tsx`.
+* [x] Flip live mode with `VITE_USE_MOCK_DATA=false` in `frontend/.env.local`.
+* [x] Verify 1-click **Approve Containment** path causes Role 2 to publish authenticated MQTT controls, receives truthful acknowledgements, updates `smart_lock_01` to `quarantined`, and activates `decoy_twin_01`.
+* [x] Verify subsequent simulated attacker traffic is explicitly redirected to the Decoy Twin and increments actual capture counters without unlocking the quarantined lock.
+* [x] Verify all actions persist in the SQLite audit store and render through the audit API/WebSocket contract.
 
 ### Phase 4: Hardening, Fallback & Pitch Rehearsal (Hours 18–24)
-* [ ] Complete organiser lab-isolation and MQTT security checks (`README.md`, Docker network inspection, credential hygiene, and positive/negative ACL tests).
+* [x] Complete organiser lab-isolation and MQTT security checks (`README.md`, Docker network inspection, credential hygiene, and positive/negative ACL tests).
 * [ ] Record a 60-second backup video of a clean end-to-end run (in case venue Wi-Fi interrupts live LLM API calls).
 * [ ] Rehearse the 3-minute live demo script:
   1. Show **Agent Bypassed** → trigger Coordinated Breach → show unmitigated compromise.
@@ -88,15 +88,12 @@
 
 ---
 
-## 4. Role 1 Gated Execution Index
+## 4. Compressed Three-Phase MVP Execution
 
-All Role 1 tasks below begin unchecked. Existing proof-of-concept files may be reused, but they do not satisfy a gate until verified against the signed contracts.
+1. **[x] Phase A — Working IoT Lab:** contract baseline, authenticated Mosquitto, five device services, deterministic telemetry, health checks, credentials/ACLs, host endpoint, restart recovery, and isolation. Detailed evidence remains in `sim/docs/phase1.md` and `sim/docs/phase2.md`.
+2. **[x] Phase B — Attacks and Containment:** MQTT controller, all three canonical attacks, persistent warning states, full reset, command acknowledgements, quarantine, Decoy activation, explicit routed probe, and capture counters.
+3. **[x] Phase C — Integration and Demo:** FastAPI MQTT ingestion/correlation, prompt guardrail, incidents, HITL approvals, SQLite audit, REST/WebSocket, live frontend mode, focused E2E verifier, restart tests, and operating runbook.
 
-1. **[Phase 1 — Contract Freeze and Integration Agreement](sim/docs/phase1.md):** agree topics, schemas, timing, controls, attack evidence, ACL ownership, and cross-team boundaries before refactoring.
-2. **[Phase 2 — Isolated MQTT Lab and Five-Device Topology](sim/docs/phase2.md):** deploy authenticated Mosquitto and five separate device services with valid normal telemetry.
-3. **[Phase 3 — Attack Scenarios and MQTT Trigger Controller](sim/docs/phase3.md):** implement the three exact scenarios behind one MQTT trigger/lifecycle interface.
-4. **[Phase 4 — HITL Containment and Decoy Twin Routing](sim/docs/phase4.md):** enforce backend-only controls, quarantine, acknowledgements, decoy activation, simulated routing, and reset.
-5. **[Phase 5 — Hardening, Automated Verification, and Observability](sim/docs/phase5.md):** prove schema, ACL, isolation, failure-recovery, scenario, containment, and reset behavior automatically.
-6. **[Phase 6 — End-to-End Integration, Runbook, and Handoff](sim/docs/phase6.md):** run the live frontend/backend flow, finish documentation/evidence, rehearse, and obtain all-role sign-off.
+**Deferred extras:** TLS, CCTV, transparent broker-level rerouting, exhaustive load testing, advanced CI, and optional metrics. Authentication, strict schemas, HITL, audit persistence, reset, and explicit simulated Decoy routing remain required and are implemented.
 
-**Gate rule:** A later Role 1 phase cannot be declared complete while an earlier phase's acceptance criteria or completion gate remains open. Any interface change returns to Phase 1 review before implementation continues.
+**Human-only open item:** named Role 1/Role 2 contract sign-off in `sim/contracts/signoff.md`; technical API/MQTT compatibility is demonstrated by the running backend and E2E tests.

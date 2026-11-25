@@ -1,0 +1,71 @@
+# One authenticated identity per canonical device.
+
+user device_smart_lock_01
+topic write campus/lab1/telemetry/smart_lock_01
+topic write campus/lab1/presence/smart_lock_01
+topic write campus/lab1/control_ack/smart_lock_01
+topic read campus/lab1/control/smart_lock_01
+topic read campus/lab1/sim/inject/smart_lock_01
+topic read campus/lab1/sim/reset
+
+user device_rfid_scanner_01
+topic write campus/lab1/telemetry/rfid_scanner_01
+topic write campus/lab1/presence/rfid_scanner_01
+topic write campus/lab1/control_ack/rfid_scanner_01
+topic read campus/lab1/control/rfid_scanner_01
+topic read campus/lab1/sim/reset
+
+user device_air_quality_01
+topic write campus/lab1/telemetry/air_quality_01
+topic write campus/lab1/presence/air_quality_01
+topic write campus/lab1/control_ack/air_quality_01
+topic read campus/lab1/control/air_quality_01
+topic read campus/lab1/sim/inject/air_quality_01
+topic read campus/lab1/sim/reset
+
+user device_power_meter_01
+topic write campus/lab1/telemetry/power_meter_01
+topic write campus/lab1/presence/power_meter_01
+topic write campus/lab1/control_ack/power_meter_01
+topic read campus/lab1/control/power_meter_01
+topic read campus/lab1/sim/inject/power_meter_01
+topic read campus/lab1/sim/reset
+
+user device_decoy_twin_01
+topic write campus/lab1/telemetry/decoy_twin_01
+topic write campus/lab1/presence/decoy_twin_01
+topic write campus/lab1/control_ack/decoy_twin_01
+topic write campus/lab1/decoy/events
+topic read campus/lab1/control/decoy_twin_01
+topic read campus/lab1/sim/reset
+topic read campus/lab1/decoy/input/+
+
+# Scenario controller. It can request private simulated evidence but cannot
+# publish public telemetry, device controls, or acknowledgements.
+user attack_controller
+topic read campus/lab1/sim/attack/trigger
+topic read campus/lab1/sim/reset
+topic read campus/lab1/decoy/events
+topic write campus/lab1/sim/attack/status
+topic write campus/lab1/sim/inject/smart_lock_01
+topic write campus/lab1/sim/inject/air_quality_01
+topic write campus/lab1/sim/inject/power_meter_01
+topic write campus/lab1/decoy/input/+
+topic write campus/lab1/test/ground_truth
+
+# Role 2 integration boundary. Explicit reads prevent accidental access to
+# private injection, raw Decoy input, and observer-only ground truth.
+user backend
+topic read campus/lab1/telemetry/+
+topic read campus/lab1/presence/+
+topic read campus/lab1/control_ack/+
+topic read campus/lab1/sim/attack/status
+topic read campus/lab1/decoy/events
+topic write campus/lab1/sim/attack/trigger
+topic write campus/lab1/control/+
+topic write campus/lab1/sim/reset
+
+# Local diagnostics only. This principal is read-only and its observations
+# must never feed Role 2 detection.
+user observer
+topic read campus/lab1/#

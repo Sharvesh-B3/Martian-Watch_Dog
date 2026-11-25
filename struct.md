@@ -4,7 +4,8 @@ This is the agreed target structure. Existing proof-of-concept aggregators may r
 
 ```text
 life-support-watchdog/
-├── docker-compose.yml                  # Broker, 5 device services, attack controller, optional observer
+├── docker-compose.yml                  # Broker, 5 devices, attack controller and FastAPI backend
+├── .dockerignore                       # Keeps secrets, caches, tests and large local output out of images
 ├── .env.example                        # Non-secret MQTT, timing, simulator, backend & frontend settings
 ├── .gitignore                          # Excludes local secrets, generated password DBs and runtime data
 ├── README.md                           # Setup, credentials, isolation, operation, reset & declared tools
@@ -13,7 +14,12 @@ life-support-watchdog/
 │
 ├── sim/                                # [Role 1 - YOU] Isolated IoT lab, attacks & actuators
 │   ├── Dockerfile                      # Shared image used by Role 1 Python services
-│   ├── requirements.txt                # Pinned simulator, MQTT, schema & test dependencies
+│   ├── README.md                       # Role 1 setup, operation, verification & current limits
+│   ├── .env.example                    # Non-secret Role 1 account names and optional seed settings
+│   ├── setup_credentials.py            # Atomic 8-account generation via official Docker tool
+│   ├── verify_lab.py                    # Safe live telemetry/auth/subscription verification
+│   ├── requirements.txt                # Pinned simulator MQTT/schema runtime dependencies
+│   ├── requirements-dev.txt            # Local-only validation dependency pins
 │   ├── docs/
 │   │   ├── phase1.md                   # Contract freeze and integration agreement
 │   │   ├── phase2.md                   # Isolated MQTT lab and five-device topology
@@ -42,13 +48,15 @@ life-support-watchdog/
 │   ├── broker/
 │   │   ├── mosquitto.conf              # Authenticated broker configuration
 │   │   ├── acl                          # Tracked least-privilege topic rules
+│   │   ├── entrypoint.sh                # Copies secrets to private mosquitto-owned runtime files
 │   │   └── generated/                   # Ignored; local passwd database from setup script
 │   ├── .env                             # Ignored; generated local MQTT client passwords
 │   ├── common/
 │   │   ├── config.py                   # Environment validation; no embedded credentials
-│   │   ├── mqtt.py                     # Connection, TLS/auth if agreed, retry and graceful shutdown
+│   │   ├── healthcheck.py              # Device publish/connect freshness health gate
+│   │   ├── mqtt.py                     # MQTT 3.1.1 auth, retry, presence and graceful shutdown
 │   │   ├── messages.py                 # Schema validation, IDs and timestamps
-│   │   └── state.py                    # Shared idempotent state-transition helpers
+│   │   └── state.py                    # Thread-safe device model separated from transport
 │   ├── devices/                        # Separate Compose service and MQTT client per device
 │   │   ├── smart_lock.py               # smart_lock_01
 │   │   ├── rfid_scanner.py             # rfid_scanner_01
@@ -58,9 +66,7 @@ life-support-watchdog/
 │   ├── attacks/
 │   │   ├── controller.py               # Consumes signed MQTT scenario triggers
 │   │   ├── trigger_cli.py              # Publishes the same trigger contract for operators
-│   │   ├── spoof_sensor.py             # Physics anomaly without prompt injection
-│   │   ├── coordinated_intrusion.py    # Power scan + absent RFID context + lock unlock
-│   │   └── prompt_injection.py         # Hostile instruction in an untrusted telemetry field
+│   │   └── red_team.py                 # Retained legacy proof-of-concept menu
 │   ├── monitor.py                      # Read-only observer; never the Role 2 detector
 │   └── tests/
 │       ├── unit/                       # Physics, schemas, state transitions and idempotency
@@ -68,22 +74,12 @@ life-support-watchdog/
 │       ├── security/                   # ACL denial, credentials and network-isolation checks
 │       └── fixtures/                   # Stable deterministic test data
 │
-├── backend/                            # [Role 2] FastAPI Agent & Guardrails
-│   ├── pyproject.toml / requirements.txt
+├── backend/                            # [Role 2 compressed MVP] FastAPI + MQTT + HITL
+│   ├── Dockerfile                      # Non-root Python 3.13 backend image
+│   ├── requirements.txt                # FastAPI, Uvicorn, Paho and schema dependencies
 │   └── app/
-│       ├── main.py                     # FastAPI app, CORS, lifespan, WebSocket/SSE router
-│       ├── config.py                   # Environment config via Pydantic settings
-│       ├── schemas.py                  # Contracts aligned with sim/contracts + frontend types
-│       ├── mqtt_client.py              # Telemetry ingest; scenario triggers; approved controls
-│       ├── correlation_window.py       # Rolling 60s sliding window per zone/device
-│       ├── guardrail.py                # Prompt-injection sanitizer & untrusted-data framing
-│       ├── agent.py                    # Anomaly pre-filter + LLM Sense → Think → Act → Explain
-│       ├── hitl_engine.py              # Human-in-the-Loop queue & decision enforcement
-│       ├── audit_db.py                 # SQLite store for incidents, approvals & audit logs
-│       └── api/
-│           ├── routes_incidents.py     # Incidents, audit log and POST /api/sim/trigger
-│           ├── routes_approvals.py     # Approval decisions; controls publish only after approval
-│           └── routes_stream.py        # Real-time WebSocket or SSE push to React
+│       ├── __init__.py
+│       └── main.py                     # MQTT ingest/correlation/guardrail, REST, WS, HITL & SQLite audit
 │
 └── frontend/                           # [Role 3] React + Vite SOC Dashboard
     ├── package.json

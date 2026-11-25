@@ -1,9 +1,172 @@
+name: aegis-watchdog
+
+x-device-service: &device-service
+  image: aegis-watchdog-sim:local
+  init: true
+  restart: unless-stopped
+  depends_on:
+    mosquitto:
+      condition: service_healthy
+  networks:
+    - watchdog-lab
+  security_opt:
+    - no-new-privileges:true
+  healthcheck:
+    test: ["CMD", "python", "-m", "sim.common.healthcheck"]
+    interval: 5s
+    timeout: 3s
+    retries: 4
+    start_period: 15s
+
+x-device-environment: &device-environment
+  MQTT_HOST: mosquitto
+  MQTT_PORT: "1883"
+  MQTT_KEEPALIVE_SECONDS: "30"
+  MQTT_CONNECT_TIMEOUT_SECONDS: "30"
+  TELEMETRY_INTERVAL_SECONDS: "2"
+  HEALTH_FILE: /tmp/watchdog-health.json
+  HEALTH_MAX_AGE_SECONDS: "15"
+  SCHEMA_DIR: /app/sim/contracts
+  LOG_LEVEL: INFO
+
 services:
   mosquitto:
     image: eclipse-mosquitto:2
-    container_name: watchdog-mqtt
-    ports:
-      - "127.0.0.1:1883:1883"
-    volumes:
-      - ./sim/broker:/mosquitto/config
     restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:${MQTT_HOST_PORT:-1884}:1883"
+    environment:
+      MQTT_OBSERVER_USERNAME: "${MQTT_OBSERVER_USERNAME:?Run python sim/setup_credentials.py first}"
+      MQTT_OBSERVER_PASSWORD: "${MQTT_OBSERVER_PASSWORD:?Run python sim/setup_credentials.py first}"
+    volumes:
+      - ./sim/broker/entrypoint.sh:/run/watchdog/entrypoint.sh:ro
+      - ./sim/broker/mosquitto.conf:/run/watchdog/mosquitto.conf:ro
+      - ./sim/broker/acl:/run/watchdog/acl:ro
+      - ./sim/broker/generated/passwd:/run/watchdog/passwd:ro
+    entrypoint: ["/bin/ash", "/run/watchdog/entrypoint.sh"]
+    networks:
+      - watchdog-lab
+      - watchdog-host-access
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mosquitto_sub -h 127.0.0.1 -p 1883
+          -u "$${MQTT_OBSERVER_USERNAME}" -P "$${MQTT_OBSERVER_PASSWORD}"
+          -t 'campus/lab1/presence/+' -q 1 -C 1 -W 2 >/dev/null 2>&1;
+          code=$$?;
+          [ "$$code" -eq 0 ] || [ "$$code" -eq 27 ]
+      interval: 5s
+      timeout: 4s
+      retries: 5
+      start_period: 10s
+
+  smart_lock_01:
+    <<: *device-service
+    build:
+      context: .
+      dockerfile: sim/Dockerfile
+    command: ["python", "-m", "sim.devices.smart_lock"]
+    environment:
+      <<: *device-environment
+      MQTT_CLIENT_ID: watchdog-smart-lock-01
+      MQTT_USERNAME: "${MQTT_SMART_LOCK_USERNAME:?Missing smart-lock username}"
+      MQTT_PASSWORD: "${MQTT_SMART_LOCK_PASSWORD:?Missing smart-lock password}"
+      SIM_SEED: "${SMART_LOCK_SIM_SEED:-101}"
+
+  rfid_scanner_01:
+    <<: *device-service
+    command: ["python", "-m", "sim.devices.rfid_scanner"]
+    environment:
+      <<: *device-environment
+      MQTT_CLIENT_ID: watchdog-rfid-scanner-01
+      MQTT_USERNAME: "${MQTT_RFID_SCANNER_USERNAME:?Missing RFID username}"
+      MQTT_PASSWORD: "${MQTT_RFID_SCANNER_PASSWORD:?Missing RFID password}"
+      SIM_SEED: "${RFID_SCANNER_SIM_SEED:-102}"
+
+  air_quality_01:
+    <<: *device-service
+    command: ["python", "-m", "sim.devices.air_quality"]
+    environment:
+      <<: *device-environment
+      MQTT_CLIENT_ID: watchdog-air-quality-01
+      MQTT_USERNAME: "${MQTT_AIR_QUALITY_USERNAME:?Missing air-quality username}"
+      MQTT_PASSWORD: "${MQTT_AIR_QUALITY_PASSWORD:?Missing air-quality password}"
+      SIM_SEED: "${AIR_QUALITY_SIM_SEED:-103}"
+
+  power_meter_01:
+    <<: *device-service
+    command: ["python", "-m", "sim.devices.power_meter"]
+    environment:
+      <<: *device-environment
+      MQTT_CLIENT_ID: watchdog-power-meter-01
+      MQTT_USERNAME: "${MQTT_POWER_METER_USERNAME:?Missing power-meter username}"
+      MQTT_PASSWORD: "${MQTT_POWER_METER_PASSWORD:?Missing power-meter password}"
+      SIM_SEED: "${POWER_METER_SIM_SEED:-104}"
+
+  decoy_twin_01:
+    <<: *device-service
+    command: ["python", "-m", "sim.devices.decoy_twin"]
+    environment:
+      <<: *device-environment
+      MQTT_CLIENT_ID: watchdog-decoy-twin-01
+      MQTT_USERNAME: "${MQTT_DECOY_TWIN_USERNAME:?Missing Decoy Twin username}"
+      MQTT_PASSWORD: "${MQTT_DECOY_TWIN_PASSWORD:?Missing Decoy Twin password}"
+      SIM_SEED: "${DECOY_TWIN_SIM_SEED:-105}"
+
+  attack_controller:
+    <<: *device-service
+    command: ["python", "-m", "sim.attacks.controller"]
+    environment:
+      <<: *device-environment
+      MQTT_CLIENT_ID: watchdog-attack-controller
+      MQTT_USERNAME: "${MQTT_ATTACK_CONTROLLER_USERNAME:?Missing attack-controller username}"
+      MQTT_PASSWORD: "${MQTT_ATTACK_CONTROLLER_PASSWORD:?Missing attack-controller password}"
+
+  backend:
+    image: aegis-watchdog-backend:local
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    init: true
+    restart: unless-stopped
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: "${MQTT_BACKEND_USERNAME:?Missing backend username}"
+      MQTT_PASSWORD: "${MQTT_BACKEND_PASSWORD:?Missing backend password}"
+      AUDIT_DB: /data/watchdog.db
+    volumes:
+      - watchdog-backend-data:/data
+    networks:
+      - watchdog-lab
+      - watchdog-host-access
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json,urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health')); assert d['mqtt_connected']"
+      interval: 5s
+      timeout: 3s
+      retries: 8
+      start_period: 15s
+
+networks:
+  watchdog-lab:
+    internal: true
+  watchdog-host-access:
+    internal: false
+
+volumes:
+  watchdog-backend-data:
