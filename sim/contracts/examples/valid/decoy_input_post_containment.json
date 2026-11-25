@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "event_id": "66666666-6666-4666-8666-666666666661",
+  "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+  "route_command_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+  "target_device_id": "smart_lock_01",
+  "attack_type": "coordinated_intrusion",
+  "timestamp": "2026-11-25T12:04:02Z",
+  "probe_kind": "post_containment",
+  "content_type": "text/plain; charset=utf-8",
+  "content": "UNAUTHORIZED_UNLOCK_PROBE",
+  "content_sha256": "b97118231337bdf71c05889edea2184bebefbd350a1c33cd6e9e275cc680392b"
+}

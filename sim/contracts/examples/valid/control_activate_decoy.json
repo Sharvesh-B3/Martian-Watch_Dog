@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "command_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+  "correlation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+  "target_id": "decoy_twin_01",
+  "action": "ACTIVATE_DECOY",
+  "incident_id": "inc-203",
+  "approval_id": "apr-703",
+  "issued_at": "2026-11-25T12:04:01Z",
+  "expires_at": "2026-11-25T12:04:31Z",
+  "actor": "backend"
+}

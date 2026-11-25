@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "event_id": "93333333-3333-4333-8333-333333333331",
+  "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+  "attack_type": "coordinated_intrusion",
+  "status": "accepted",
+  "timestamp": "2026-11-25T12:03:00Z",
+  "code": "accepted with spaces",
+  "detail": null,
+  "emitted_by": "attack_controller"
+}

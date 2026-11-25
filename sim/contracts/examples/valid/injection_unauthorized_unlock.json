@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "event_id": "44444444-4444-4444-8444-444444444444",
+  "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+  "attack_type": "coordinated_intrusion",
+  "target_device_id": "smart_lock_01",
+  "evidence": "unauthorized_unlock",
+  "sequence": 2,
+  "total": 3,
+  "issued_at": "2026-11-25T12:03:01Z",
+  "expires_at": "2026-11-25T12:03:11Z"
+}

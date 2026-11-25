@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "event_id": "77777777-7777-4777-8777-777777777771",
+  "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+  "route_command_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+  "decoy_device_id": "decoy_twin_01",
+  "target_device_id": "smart_lock_01",
+  "timestamp": "2026-11-25T12:04:01Z",
+  "event_type": "activated",
+  "capture_id": null,
+  "payload_sha256": null,
+  "captured_bytes": 0,
+  "active_traps": 1,
+  "captured_payloads": 0,
+  "safe_summary": "Decoy route activated for smart_lock_01."
+}

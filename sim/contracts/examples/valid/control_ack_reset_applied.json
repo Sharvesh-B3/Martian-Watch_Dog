@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "event_id": "55555555-5555-4555-8555-555555555552",
+  "command_id": "cccccccc-cccc-4ccc-8ccc-ccccccccccc4",
+  "correlation_id": "cccccccc-cccc-4ccc-8ccc-ccccccccccc5",
+  "target_id": "air_quality_01",
+  "action": "RESET",
+  "status": "applied",
+  "observed_state": "normal",
+  "timestamp": "2026-11-25T12:10:01Z",
+  "code": "RESET_APPLIED",
+  "detail": null
+}

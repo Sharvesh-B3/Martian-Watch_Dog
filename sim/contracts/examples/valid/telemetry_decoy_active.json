@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "event_id": "11111111-1111-4111-8111-111111111119",
+  "correlation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+  "device_id": "decoy_twin_01",
+  "device_type": "decoy_twin",
+  "zone": "lab-wing-a",
+  "timestamp": "2026-11-25T12:05:00Z",
+  "status": "decoy",
+  "metrics": {
+    "mode": "active",
+    "active_traps": 1,
+    "captured_payloads": 1
+  },
+  "metadata": {
+    "note": null
+  }
+}

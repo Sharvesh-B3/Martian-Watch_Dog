@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "command_id": "cccccccc-cccc-4ccc-8ccc-ccccccccccc4",
+  "correlation_id": "cccccccc-cccc-4ccc-8ccc-ccccccccccc5",
+  "target_id": "lab1",
+  "action": "RESET",
+  "incident_id": null,
+  "approval_id": null,
+  "issued_at": "2026-11-25T12:10:00Z",
+  "expires_at": "2026-11-25T12:10:30Z",
+  "actor": "backend"
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "event_id": "95555555-5555-4555-8555-555555555551",
+  "command_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+  "correlation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+  "target_id": "smart_lock_01",
+  "action": "QUARANTINE",
+  "status": "successful",
+  "observed_state": "quarantined",
+  "timestamp": "2026-11-25T12:04:01Z",
+  "code": "QUARANTINE_APPLIED",
+  "detail": null
+}

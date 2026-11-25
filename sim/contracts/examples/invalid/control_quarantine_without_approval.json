@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "command_id": "9bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+  "correlation_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+  "target_id": "smart_lock_01",
+  "action": "QUARANTINE",
+  "incident_id": "inc-203",
+  "approval_id": null,
+  "issued_at": "2026-11-25T12:04:00Z",
+  "expires_at": "2026-11-25T12:04:30Z",
+  "actor": "backend"
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aegis-watchdog.local/schemas/attack_status.schema.json",
+  "title": "Aegis Watchdog Attack and Reset Status 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "request_id",
+    "attack_type",
+    "status",
+    "timestamp",
+    "code",
+    "detail",
+    "emitted_by"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "event_id": { "$ref": "#/$defs/uuid" },
+    "request_id": { "$ref": "#/$defs/uuid" },
+    "attack_type": {
+      "enum": ["spoof_sensor", "coordinated_intrusion", "prompt_injection", "reset"]
+    },
+    "status": {
+      "enum": ["accepted", "started", "completed", "failed", "rejected", "duplicate", "busy"]
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+    },
+    "detail": {
+      "type": ["string", "null"],
+      "maxLength": 1024
+    },
+    "emitted_by": { "const": "attack_controller" }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    }
+  }
+}

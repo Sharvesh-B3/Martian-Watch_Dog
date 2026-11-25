@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "event_id": "98888888-8888-4888-8888-888888888881",
+  "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+  "attack_type": "coordinated_intrusion",
+  "timestamp": "2026-11-25T12:03:05Z",
+  "phase": "evidence_emitted",
+  "expected_device_ids": [
+    "smart_lock_01",
+    "cctv_01"
+  ],
+  "evidence_event_ids": [],
+  "note": null
+}

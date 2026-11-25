@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aegis-watchdog.local/schemas/injection.schema.json",
+  "title": "Aegis Watchdog Private Scenario Injection 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "request_id",
+    "attack_type",
+    "target_device_id",
+    "evidence",
+    "sequence",
+    "total",
+    "issued_at",
+    "expires_at"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "event_id": { "$ref": "#/$defs/uuid" },
+    "request_id": { "$ref": "#/$defs/uuid" },
+    "attack_type": {
+      "enum": ["spoof_sensor", "coordinated_intrusion", "prompt_injection"]
+    },
+    "target_device_id": {
+      "enum": ["smart_lock_01", "air_quality_01", "power_meter_01"]
+    },
+    "evidence": {
+      "enum": ["pm25_spike", "prompt_note", "port_scan", "unauthorized_unlock"]
+    },
+    "sequence": { "type": "integer", "minimum": 1, "maximum": 3 },
+    "total": { "const": 3 },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "attack_type": { "const": "spoof_sensor" },
+        "target_device_id": { "const": "air_quality_01" },
+        "evidence": { "const": "pm25_spike" }
+      }
+    },
+    {
+      "properties": {
+        "attack_type": { "const": "prompt_injection" },
+        "target_device_id": { "const": "air_quality_01" },
+        "evidence": { "const": "prompt_note" }
+      }
+    },
+    {
+      "properties": {
+        "attack_type": { "const": "coordinated_intrusion" },
+        "target_device_id": { "const": "power_meter_01" },
+        "evidence": { "const": "port_scan" }
+      }
+    },
+    {
+      "properties": {
+        "attack_type": { "const": "coordinated_intrusion" },
+        "target_device_id": { "const": "smart_lock_01" },
+        "evidence": { "const": "unauthorized_unlock" }
+      }
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    }
+  }
+}

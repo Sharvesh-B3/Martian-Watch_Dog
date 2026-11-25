@@ -228,3 +228,7 @@ node_modules/
 # Local environment overrides
 .env.local
 .env.*.local
+
+# Role 1 local MQTT credentials (generated, never committed)
+sim/.env
+sim/broker/generated/

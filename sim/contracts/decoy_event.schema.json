@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aegis-watchdog.local/schemas/decoy_event.schema.json",
+  "title": "Aegis Watchdog Decoy Twin Event 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "request_id",
+    "route_command_id",
+    "decoy_device_id",
+    "target_device_id",
+    "timestamp",
+    "event_type",
+    "capture_id",
+    "payload_sha256",
+    "captured_bytes",
+    "active_traps",
+    "captured_payloads",
+    "safe_summary"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "event_id": { "$ref": "#/$defs/uuid" },
+    "request_id": { "$ref": "#/$defs/uuid" },
+    "route_command_id": { "$ref": "#/$defs/uuid" },
+    "decoy_device_id": { "const": "decoy_twin_01" },
+    "target_device_id": {
+      "enum": ["smart_lock_01", "rfid_scanner_01", "air_quality_01", "power_meter_01"]
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "event_type": { "enum": ["activated", "capture", "restored"] },
+    "capture_id": { "$ref": "#/$defs/nullableUuid" },
+    "payload_sha256": {
+      "oneOf": [
+        { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        { "type": "null" }
+      ]
+    },
+    "captured_bytes": { "type": "integer", "minimum": 0, "maximum": 4096 },
+    "active_traps": { "type": "integer", "minimum": 0, "maximum": 1000 },
+    "captured_payloads": { "type": "integer", "minimum": 0 },
+    "safe_summary": {
+      "type": ["string", "null"],
+      "maxLength": 1024,
+      "description": "Safe bounded summary; never raw trusted instructions."
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "event_type": { "const": "activated" },
+        "capture_id": { "type": "null" },
+        "payload_sha256": { "type": "null" },
+        "captured_bytes": { "const": 0 },
+        "active_traps": { "type": "integer", "minimum": 1 }
+      }
+    },
+    {
+      "properties": {
+        "event_type": { "const": "capture" },
+        "capture_id": { "$ref": "#/$defs/uuid" },
+        "payload_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "captured_bytes": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "active_traps": { "type": "integer", "minimum": 1 },
+        "captured_payloads": { "type": "integer", "minimum": 1 },
+        "safe_summary": { "type": "string", "minLength": 1, "maxLength": 1024 }
+      }
+    },
+    {
+      "properties": {
+        "event_type": { "const": "restored" },
+        "capture_id": { "type": "null" },
+        "payload_sha256": { "type": "null" },
+        "captured_bytes": { "const": 0 },
+        "active_traps": { "const": 0 },
+        "captured_payloads": { "const": 0 }
+      }
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "nullableUuid": {
+      "oneOf": [
+        { "$ref": "#/$defs/uuid" },
+        { "type": "null" }
+      ]
+    }
+  }
+}

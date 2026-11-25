@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aegis-watchdog.local/schemas/control_ack.schema.json",
+  "title": "Aegis Watchdog Control Acknowledgement 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "command_id",
+    "correlation_id",
+    "target_id",
+    "action",
+    "status",
+    "observed_state",
+    "timestamp",
+    "code",
+    "detail"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "event_id": { "$ref": "#/$defs/uuid" },
+    "command_id": { "$ref": "#/$defs/uuid" },
+    "correlation_id": { "$ref": "#/$defs/uuid" },
+    "target_id": {
+      "enum": [
+        "smart_lock_01",
+        "rfid_scanner_01",
+        "air_quality_01",
+        "power_meter_01",
+        "decoy_twin_01"
+      ]
+    },
+    "action": { "enum": ["QUARANTINE", "ACTIVATE_DECOY", "RESTORE", "RESET"] },
+    "status": { "enum": ["accepted", "applied", "rejected", "failed", "duplicate"] },
+    "observed_state": { "enum": ["normal", "warning", "quarantined", "decoy"] },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+    },
+    "detail": {
+      "type": ["string", "null"],
+      "maxLength": 1024
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    }
+  }
+}

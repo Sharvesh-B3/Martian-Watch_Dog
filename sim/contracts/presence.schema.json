@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aegis-watchdog.local/schemas/presence.schema.json",
+  "title": "Aegis Watchdog Device Presence 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "device_id",
+    "device_type",
+    "zone",
+    "client_id",
+    "session_started_at",
+    "state",
+    "reason"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "event_id": { "$ref": "#/$defs/uuid" },
+    "device_id": {
+      "enum": [
+        "smart_lock_01",
+        "rfid_scanner_01",
+        "air_quality_01",
+        "power_meter_01",
+        "decoy_twin_01"
+      ]
+    },
+    "device_type": {
+      "enum": [
+        "smart_lock",
+        "rfid_scanner",
+        "air_quality",
+        "power_meter",
+        "decoy_twin"
+      ]
+    },
+    "zone": { "const": "lab-wing-a" },
+    "client_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^watchdog-[a-z0-9-]+$"
+    },
+    "session_started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Session start time captured when online and Last Will payloads are prepared; consumers record their own receive time."
+    },
+    "state": { "enum": ["online", "offline"] },
+    "reason": { "enum": ["connected", "reconnected", "last_will", "graceful_shutdown"] }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "state": { "const": "online" } } },
+      "then": { "properties": { "reason": { "enum": ["connected", "reconnected"] } } },
+      "else": { "properties": { "reason": { "enum": ["last_will", "graceful_shutdown"] } } }
+    },
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "device_id": { "const": "smart_lock_01" },
+            "device_type": { "const": "smart_lock" }
+          }
+        },
+        {
+          "properties": {
+            "device_id": { "const": "rfid_scanner_01" },
+            "device_type": { "const": "rfid_scanner" }
+          }
+        },
+        {
+          "properties": {
+            "device_id": { "const": "air_quality_01" },
+            "device_type": { "const": "air_quality" }
+          }
+        },
+        {
+          "properties": {
+            "device_id": { "const": "power_meter_01" },
+            "device_type": { "const": "power_meter" }
+          }
+        },
+        {
+          "properties": {
+            "device_id": { "const": "decoy_twin_01" },
+            "device_type": { "const": "decoy_twin" }
+          }
+        }
+      ]
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    }
+  }
+}

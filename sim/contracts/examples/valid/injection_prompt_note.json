@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "event_id": "44444444-4444-4444-8444-444444444442",
+  "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+  "attack_type": "prompt_injection",
+  "target_device_id": "air_quality_01",
+  "evidence": "prompt_note",
+  "sequence": 1,
+  "total": 3,
+  "issued_at": "2026-11-25T12:02:00Z",
+  "expires_at": "2026-11-25T12:02:10Z"
+}

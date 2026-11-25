@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aegis-watchdog.local/schemas/control.schema.json",
+  "title": "Aegis Watchdog Device Control and Lab Reset 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "command_id",
+    "correlation_id",
+    "target_id",
+    "action",
+    "incident_id",
+    "approval_id",
+    "issued_at",
+    "expires_at",
+    "actor"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "command_id": { "$ref": "#/$defs/uuid" },
+    "correlation_id": { "$ref": "#/$defs/uuid" },
+    "target_id": {
+      "enum": [
+        "smart_lock_01",
+        "rfid_scanner_01",
+        "air_quality_01",
+        "power_meter_01",
+        "decoy_twin_01",
+        "lab1"
+      ]
+    },
+    "action": { "enum": ["QUARANTINE", "ACTIVATE_DECOY", "RESTORE", "RESET"] },
+    "incident_id": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "approval_id": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "actor": { "const": "backend" }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "action": { "const": "QUARANTINE" },
+        "target_id": {
+          "enum": ["smart_lock_01", "rfid_scanner_01", "air_quality_01", "power_meter_01"]
+        },
+        "incident_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "approval_id": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    {
+      "properties": {
+        "action": { "const": "ACTIVATE_DECOY" },
+        "target_id": { "const": "decoy_twin_01" },
+        "incident_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "approval_id": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    {
+      "properties": {
+        "action": { "const": "RESTORE" },
+        "target_id": {
+          "enum": [
+            "smart_lock_01",
+            "rfid_scanner_01",
+            "air_quality_01",
+            "power_meter_01",
+            "decoy_twin_01"
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "action": { "const": "RESET" },
+        "target_id": { "const": "lab1" }
+      }
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aegis-watchdog.local/schemas/ground_truth.schema.json",
+  "title": "Aegis Watchdog Test Ground Truth 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "request_id",
+    "attack_type",
+    "timestamp",
+    "phase",
+    "expected_device_ids",
+    "evidence_event_ids",
+    "note"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "event_id": { "$ref": "#/$defs/uuid" },
+    "request_id": { "$ref": "#/$defs/uuid" },
+    "attack_type": {
+      "enum": ["spoof_sensor", "coordinated_intrusion", "prompt_injection"]
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "phase": { "enum": ["started", "evidence_emitted", "completed"] },
+    "expected_device_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["smart_lock_01", "rfid_scanner_01", "air_quality_01", "power_meter_01"]
+      }
+    },
+    "evidence_event_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/uuid" }
+    },
+    "note": {
+      "type": ["string", "null"],
+      "maxLength": 1024
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aegis-watchdog.local/schemas/decoy_input.schema.json",
+  "title": "Aegis Watchdog Private Decoy Input 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "request_id",
+    "route_command_id",
+    "target_device_id",
+    "attack_type",
+    "timestamp",
+    "probe_kind",
+    "content_type",
+    "content",
+    "content_sha256"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "event_id": { "$ref": "#/$defs/uuid" },
+    "request_id": { "$ref": "#/$defs/uuid" },
+    "route_command_id": { "$ref": "#/$defs/uuid" },
+    "target_device_id": {
+      "enum": ["smart_lock_01", "rfid_scanner_01", "air_quality_01", "power_meter_01"]
+    },
+    "attack_type": {
+      "enum": ["spoof_sensor", "coordinated_intrusion", "prompt_injection"]
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "probe_kind": { "enum": ["post_containment", "active_scenario"] },
+    "content_type": { "const": "text/plain; charset=utf-8" },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "Untrusted simulated attacker content."
+    },
+    "content_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    }
+  }
+}

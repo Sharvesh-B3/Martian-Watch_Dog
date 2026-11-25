@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "event_id": "94444444-4444-4444-8444-444444444441",
+  "request_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+  "attack_type": "spoof_sensor",
+  "target_device_id": "smart_lock_01",
+  "evidence": "unauthorized_unlock",
+  "sequence": 1,
+  "total": 3,
+  "issued_at": "2026-11-25T12:01:00Z",
+  "expires_at": "2026-11-25T12:01:10Z"
+}
