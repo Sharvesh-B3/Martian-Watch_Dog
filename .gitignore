@@ -221,3 +221,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node dependencies (installed locally, never committed)
+node_modules/
+
+# Local environment overrides
+.env.local
+.env.*.local
