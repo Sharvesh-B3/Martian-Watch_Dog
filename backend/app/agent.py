@@ -1,4 +1,8 @@
-"""Anomaly prefilter plus structured Sense -> Think -> Act -> Explain reasoning."""
+"""Anomaly prefilter plus structured Sense -> Think -> Act -> Explain reasoning.
+
+Reasoning is supplied by the injected LLM client: the direct Gemini API by default,
+with an optional local OpenAI-compatible fallback.
+"""
 
 from dataclasses import asdict, dataclass
 

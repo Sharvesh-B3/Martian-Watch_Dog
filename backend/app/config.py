@@ -20,10 +20,9 @@ class Settings(BaseSettings):
     MQTT_TOPIC_PREFIX: str = "campus/lab1"
 
     # LLM provider
-    LLM_PROVIDER: Literal["openai", "local"] = "openai"
-    ROUTER_BASE_URL: str | None = None
-    ROUTER_MODEL: str | None = None
-    ROUTER_API_KEY: str | None = None
+    LLM_PROVIDER: Literal["gemini", "local"] = "gemini"
+    GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = "gemini-3.5-flash-lite"
     LOCAL_LLM_BASE_URL: str | None = None
     LOCAL_LLM_MODEL: str = "local-model"
     LLM_TIMEOUT_SECONDS: float = 30.0
@@ -45,16 +44,8 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_llm_settings(self) -> "Settings":
         """Fail fast when the selected LLM provider is not configured."""
-        if self.LLM_PROVIDER == "openai":
-            missing = [
-                name
-                for name in ("ROUTER_BASE_URL", "ROUTER_MODEL", "ROUTER_API_KEY")
-                if not getattr(self, name)
-            ]
-            if missing:
-                raise ValueError(
-                    f"{', '.join(missing)} required when LLM_PROVIDER=openai"
-                )
+        if self.LLM_PROVIDER == "gemini" and not self.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY is required when LLM_PROVIDER=gemini")
         if self.LLM_PROVIDER == "local" and not self.LOCAL_LLM_BASE_URL:
             raise ValueError("LOCAL_LLM_BASE_URL is required when LLM_PROVIDER=local")
         return self

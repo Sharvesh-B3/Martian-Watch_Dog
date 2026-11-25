@@ -8,7 +8,7 @@ Decisions already agreed:
 - FastAPI + `paho-mqtt` + SQLite (stdlib `sqlite3`) + Pydantic; no extra infrastructure services.
 - `backend/app/schemas.py` is 1:1 with `frontend/src/types/watchdog.ts`.
 - Live Agent Active/Bypassed toggle: add `POST /api/agent/mode`; `frontend/src/api/client.ts:setAgentMode()` posts to it.
-- LLM is required: OpenAI-compatible agent router via `httpx` (structured JSON) now, with a switchable OpenAI-compatible local endpoint for later (`LLM_PROVIDER=openai|local`). Direct Gemini was removed after the API rejected the configured model. Missing config fails fast at startup; failed reasoning returns `503` + a `SYSTEM` audit entry. No fabricated offline explanation.
+- LLM is required: direct Gemini API via `httpx` (structured JSON with a response schema) now, with a switchable OpenAI-compatible local endpoint for later (`LLM_PROVIDER=gemini|local`, default `GEMINI_MODEL=gemini-3.5-flash-lite`; `gemini-2.5-flash` is no longer available to new users). The model remains configurable with `GEMINI_MODEL`. Missing config fails fast at startup; failed reasoning returns `503` + a `SYSTEM` audit entry. No fabricated offline explanation. The former OpenAI-compatible router provider was removed.
 - HITL: low-risk actions auto-execute; high-risk quarantine/decoy requires approval and publishes MQTT control commands.
 - Role 1 device IDs/topics differ from the frontend contract; the backend absorbs this with a canonical ID map. `cctv_01` stays internal as correlation evidence.
 - Focused `pytest` suite for guardrail, correlation, HITL and schema parity.
@@ -21,8 +21,8 @@ Decisions already agreed:
 **Goal:** importable package, validated environment, FastAPI app boots with `/health`.
 
 - [x] Add `backend/requirements.txt`: `fastapi`, `uvicorn[standard]`, `paho-mqtt`, `pydantic-settings`, `python-dotenv`, `httpx`, `pytest`.
-- [x] Add `backend/.env.example` with `MQTT_HOST`, `MQTT_PORT`, `MQTT_TOPIC_PREFIX=campus/lab1`, `LLM_PROVIDER=openai`, `ROUTER_BASE_URL`, `ROUTER_MODEL`, `ROUTER_API_KEY`, `LOCAL_LLM_BASE_URL`, `LOCAL_LLM_MODEL`, `LLM_TIMEOUT_SECONDS`, `DB_PATH`, `CORS_ORIGINS`, `WINDOW_SECONDS=60`.
-- [x] Add `backend/__init__.py`, `backend/app/__init__.py` and `backend/app/config.py` using `pydantic-settings`; require `ROUTER_BASE_URL`/`ROUTER_MODEL`/`ROUTER_API_KEY` when provider is `openai`, require `LOCAL_LLM_BASE_URL` when provider is `local`.
+- [x] Add `backend/.env.example` with `MQTT_HOST`, `MQTT_PORT`, `MQTT_TOPIC_PREFIX=campus/lab1`, `LLM_PROVIDER=gemini`, `GEMINI_API_KEY`, `GEMINI_MODEL=gemini-3.5-flash-lite`, `LOCAL_LLM_BASE_URL`, `LOCAL_LLM_MODEL`, `LLM_TIMEOUT_SECONDS`, `DB_PATH`, `CORS_ORIGINS`, `WINDOW_SECONDS=60`.
+- [x] Add `backend/__init__.py`, `backend/app/__init__.py` and `backend/app/config.py` using `pydantic-settings`; require `GEMINI_API_KEY` when provider is `gemini`, require `LOCAL_LLM_BASE_URL` when provider is `local`.
 - [x] Add `backend/app/main.py`: FastAPI app, CORS from `CORS_ORIGINS`, lifespan stub, `GET /health`.
 - [x] Verify: `pip install -r backend/requirements.txt`, `uvicorn backend.app.main:app`, `curl localhost:8000/health` → `200 {"status":"ok"}`; missing key fails fast with a validation error.
 
@@ -57,13 +57,13 @@ Decisions already agreed:
 
 ## Phase 4 — LLM reasoning adapter
 
-**Goal:** structured Sense → Think → Act → Explain JSON from the OpenAI-compatible agent router, with a local-provider switch and explicit failure behaviour.
+**Goal:** structured Sense → Think → Act → Explain JSON from the direct Gemini API, with a local-provider switch and explicit failure behaviour.
 
-- [x] Add `backend/app/llm_client.py`: provider adapter. Router via `httpx` POST to `{ROUTER_BASE_URL}/chat/completions` with `Authorization: Bearer ROUTER_API_KEY`, model `ROUTER_MODEL` and JSON object response format; local via the same endpoint shape at `{LOCAL_LLM_BASE_URL}/chat/completions`; timeout; raise `LLMUnavailable` on failure.
+- [x] Add `backend/app/llm_client.py`: provider adapter. Gemini via `httpx` POST to `{GEMINI_BASE_URL}/models/{GEMINI_MODEL}:generateContent` with `x-goog-api-key`, `systemInstruction`, `contents`, and JSON `responseMimeType`/`responseSchema`; local via `{LOCAL_LLM_BASE_URL}/chat/completions`; timeout; raise `LLMUnavailable` on failure.
 - [x] Add `backend/app/agent.py`: deterministic prefilter decides whether to call the LLM; send sanitized telemetry + correlation signals framed as untrusted data; validate returned JSON keys `sense`, `think`, `act`, `explain`, `severity`, `category`, `risk_level`, `auto_execute`; map to `Incident`.
 - [x] Bypassed mode path: explicit `UNMITIGATED_BREACH` audit + warning device updates, no AI explanation generated.
-- [ ] Failure path: startup validates required env; runtime failure raises `LLMUnavailable` (API `503` + `SYSTEM` audit `LLM_UNAVAILABLE` to be wired in Phase 6); no incident is invented.
-- [x] Verify: mocked-LLM unit tests pass; live smoke passed with `openrouter/free` and returned valid structured JSON. Pinned free model `inclusionai/ling-3.2-flash:free` returned `429` due to free-tier rate limits.
+- [x] Failure path: startup validates required env; runtime failure raises `LLMUnavailable` (API `503` + `SYSTEM` audit `LLM_UNAVAILABLE` wired in Phase 6); no incident is invented.
+- [x] Verify: mocked Gemini and local unit tests pass; `python -m pytest -q backend/tests` → **54 passed**. Live Gemini smoke passed with `gemini-3.5-flash-lite` and returned valid structured JSON; `gemini-2.5-flash` returned `404` as it is no longer available to new users.
 
 ## Phase 5 — HITL enforcement and audit
 
@@ -100,7 +100,7 @@ Decisions already agreed:
 **Goal:** the 3-minute qualification demo works against live services.
 
 - [ ] Full stack up: Mosquitto, sim devices, backend, frontend with `VITE_USE_MOCK_DATA=false` — deferred locally: Docker/Mosquitto are not installed. See handoff below.
-- [x] `python -m pytest -q backend/tests` → **48 passed**.
+- [x] `python -m pytest -q backend/tests` → **54 passed**.
 - [x] Trigger all three attacks via `POST /api/sim/trigger`; WS client receives all four event types; approval decision activates quarantine/decoy in backend state.
 - [ ] Confirm sim console prints `QUARANTINE`/`DECOY` — requires the live broker/sim; deferred to handoff.
 - [x] Persistence verified by reopening the same SQLite DB in a fresh FastAPI app instance; live server restart deferred.
@@ -111,7 +111,7 @@ Decisions already agreed:
 
 1. On a machine with Docker: `docker compose up -d mosquitto`.
 2. Start sim devices: `python sim/devices/sim_devices.py`.
-3. Start the backend from the repo root: `uvicorn backend.app.main:app --reload --port 8000`.
+3. Start the backend from the repo root with `GEMINI_API_KEY` set in the environment (or root `.env`): `uvicorn backend.app.main:app --reload --port 8000`.
 4. Start the frontend with `VITE_USE_MOCK_DATA=false` and `VITE_API_BASE_URL` / `VITE_WS_URL` pointing at the backend.
 5. In the dashboard: Bypassed → Coordinated Intrusion (expect `UNMITIGATED_BREACH`); Active → Prompt Injection (expect guardrail + auto action); Coordinated Intrusion → Approve (expect sim console `QUARANTINE` then `DECOY`, Decoy Twin active, audit entries).
 6. Restart the backend and confirm incidents/approvals/audit are unchanged.
