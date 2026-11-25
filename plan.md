@@ -23,7 +23,7 @@
 ### Role 1 — IoT Lab & Red Team Lead (`sim/`)
 * **Deliverables:**
   * Isolated Docker Compose setup with **Eclipse Mosquitto** MQTT broker (`sim/broker/mosquitto.conf`) and zero external network bridges.
-  * 5 simulated Python IoT nodes (`smart_lock.py`, `rfid_scanner.py`, `air_quality.py`, `power_meter.py`, `decoy_twin.py`) publishing realistic synthetic telemetry.
+  * 5 dashboard Python IoT nodes (`smart_lock.py`, `rfid_scanner.py`, `air_quality.py`, `power_meter.py`, `decoy_twin.py`) plus an internal CCTV evidence node, each running independently and publishing realistic synthetic telemetry.
   * 3 automated Red Team attack scripts (`spoof_sensor.py`, `coordinated_intrusion.py`, `prompt_injection.py`) triggerable via CLI or API.
 * **Key Check:** Verify lab isolation and 100% synthetic data for organiser lab inspection.
 

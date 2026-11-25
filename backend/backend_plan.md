@@ -100,7 +100,7 @@ Decisions already agreed:
 **Goal:** the 3-minute qualification demo works against live services.
 
 - [x] Full service path verified with Mosquitto, sim devices, backend REST/WebSocket and live frontend contract against direct Gemini using a rotated local-only key; the same smoke also passes with the local OpenAI-compatible test provider.
-- [x] `python -m pytest -q backend/tests` → **61 passed**.
+- [x] `python -m pytest -q backend/tests sim/tests` → **80 passed** across backend and Role 1 simulation coverage.
 - [x] Trigger all three attacks via `POST /api/sim/trigger`; WS client receives all four event types; approval decision activates quarantine/decoy in backend state.
 - [x] Confirm sim console prints `door_lock_01 -> QUARANTINED` and `decoy_twin_01 -> DECOY`.
 - [x] Persistence verified by reopening the same SQLite DB in a fresh FastAPI app instance; live server restart deferred.

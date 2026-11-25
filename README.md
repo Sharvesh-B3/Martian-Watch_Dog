@@ -33,23 +33,32 @@ Create a root-level `.env` (do not commit it) using `backend/.env.example` as th
 
 The default provider is the direct Gemini API with structured JSON output. `LLM_PROVIDER=local` switches to an OpenAI-compatible local endpoint via `LOCAL_LLM_BASE_URL`. Missing provider settings fail startup fast; a runtime LLM failure returns `503` and writes a `SYSTEM` audit entry `LLM_UNAVAILABLE` — no fabricated explanation is created.
 
-Start the API:
-
-```bash
-uvicorn backend.app.main:app --reload --port 8000
-```
+The API connects to Mosquitto during startup, so start it after the Role 1 lab
+launcher described below.
 
 ## 3. Simulator and frontend
 
 Start the broker and the six-device simulator (five dashboard nodes plus the
-internal CCTV correlation signal):
+internal CCTV correlation signal) with one command:
 
 ```bash
-docker compose up -d mosquitto
-python sim/devices/sim_devices.py
+source .venv/bin/activate
+python -m sim.run_lab --seed 42 --no-noise --monitor
 ```
 
-In another terminal:
+The launcher starts Mosquitto, six independent device processes and the
+persistent Red Team controller. Ctrl+C stops every child and the broker it
+started. Add `--noise 0.25` for seeded metric drift or `--keep-broker` to leave
+Mosquitto running after the lab exits.
+
+In a second terminal, start the API from the repository root:
+
+```bash
+source .venv/bin/activate
+uvicorn backend.app.main:app --reload --port 8000
+```
+
+In a third terminal, start the frontend:
 
 ```bash
 cd frontend
@@ -69,12 +78,15 @@ Dashboard attack buttons call `POST /api/sim/trigger`. Raw MQTT attacks enter
 the same correlation → Agent → HITL pipeline:
 
 ```bash
-python sim/attacks/red_team.py
+python -m sim.attacks.red_team
 ```
 
 Option 1 emits CCTV loss, an unauthorized door unlock and port-scan evidence as
 one coordinated intrusion. Approved containment quarantines `door_lock_01` and
-activates the separate `decoy_twin_01` simulator.
+activates the separate `decoy_twin_01` simulator. Attack evidence remains active
+until the Red Team menu publishes reset (`r`) or a device receives RESTORE.
+While active, the Decoy Twin captures synthetic attacker probes and streams its
+capture count and safe payload hashes to the dashboard.
 
 ## 4. Integration contract
 
@@ -99,6 +111,6 @@ separate incidents; duplicate MQTT echoes of one attack remain deduplicated.
 ## 6. Verification
 
 ```bash
-python -m pytest -q backend/tests
+python -m pytest -q backend/tests sim/tests
 cd frontend && npm run typecheck && npm run build
 ```

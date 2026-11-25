@@ -102,6 +102,7 @@ def test_coordinated_trigger_publishes_and_creates_pending_approval(
         "triggered": "coordinated_intrusion",
     }
     assert [topic for topic, _, _ in mqtt.published] == [
+        "campus/lab1/redteam/trigger",
         "campus/lab1/cctv_cam",
         "campus/lab1/door_lock",
         "campus/lab1/smart_meter",
@@ -141,8 +142,10 @@ def test_sensor_triggers_are_separate(tmp_path: Path) -> None:
     assert "IGNORE ALL PREVIOUS INSTRUCTIONS" in (
         injection_incident["sanitized_excerpt"] or ""
     )
-    assert len(mqtt.published) == 1
-    assert len(mqtt2.published) == 1
+    assert len(mqtt.published) == 2
+    assert len(mqtt2.published) == 2
+    assert mqtt.published[0][0] == "campus/lab1/redteam/trigger"
+    assert mqtt2.published[0][0] == "campus/lab1/redteam/trigger"
 
 
 def test_llm_failure_returns_503_and_audits_without_incident(

@@ -153,18 +153,40 @@ class CorrelationWindow:
             for r in records
             if r.canonical_id == "rfid_scanner_01" and self._is_badge(r.payload)
         ]
+        coordinated_pairs = [
+            (unlock, port_scan)
+            for unlock in unlocks
+            for port_scan in port_scans
+            if self._scenario_compatible(unlock, port_scan)
+        ]
 
-        if unlocks and port_scans and not badges:
-            connections = port_scans[-1].payload.get("network_conns")
-            flags = port_scans[-1].payload.get("anomaly_flag")
+        if coordinated_pairs and not badges:
+            ordered_pairs = sorted(
+                coordinated_pairs,
+                key=lambda pair: max(pair[0].timestamp, pair[1].timestamp),
+                reverse=True,
+            )
+            unlock, port_scan = next(
+                (
+                    pair
+                    for pair in ordered_pairs
+                    if self._fingerprint(
+                        "coordinated_intrusion", pair[0], pair[1]
+                    )
+                    not in self._last_emitted
+                ),
+                ordered_pairs[0],
+            )
+            connections = port_scan.payload.get("network_conns")
+            flags = port_scan.payload.get("anomaly_flag")
             cctv_offline = any(
                 r.canonical_id == "cctv_01"
                 and str(r.payload.get("heartbeat", "")).upper() == "OFFLINE"
                 for r in records
             )
             evidence = (
-                f"{unlocks[-1].canonical_id} reported UNLOCKED / "
-                f"UNAUTHORIZED_BYPASS while {port_scans[-1].canonical_id} showed "
+                f"{unlock.canonical_id} reported UNLOCKED / "
+                f"UNAUTHORIZED_BYPASS while {port_scan.canonical_id} showed "
                 f"{connections} outbound connections and anomaly flag {flags}"
             )
             if cctv_offline:
@@ -184,9 +206,7 @@ class CorrelationWindow:
                     auto_execute=False,
                 ),
                 reference,
-                self._fingerprint(
-                    "coordinated_intrusion", unlocks[-1], port_scans[-1]
-                ),
+                self._fingerprint("coordinated_intrusion", unlock, port_scan),
             )
         elif port_scans:
             self._emit(
@@ -214,11 +234,6 @@ class CorrelationWindow:
         cutoff = reference - timedelta(seconds=self.window_seconds)
         while self._records and self._records[0].timestamp < cutoff:
             self._records.popleft()
-        self._last_emitted = {
-            key: emitted_at
-            for key, emitted_at in self._last_emitted.items()
-            if emitted_at >= cutoff
-        }
 
     def _emit(
         self,
@@ -235,6 +250,13 @@ class CorrelationWindow:
     @staticmethod
     def _fingerprint(kind: str, *records: _Record) -> str:
         """Deduplicate MQTT echoes without suppressing a later real attack."""
+        scenario_ids = [
+            str(record.payload.get("scenario_id"))
+            for record in records
+            if record.payload.get("scenario_id")
+        ]
+        if len(scenario_ids) == len(records) and len(set(scenario_ids)) == 1:
+            return f"{kind}:scenario:{scenario_ids[0]}"
         evidence = [
             {
                 "timestamp": record.timestamp.isoformat(),
@@ -247,6 +269,18 @@ class CorrelationWindow:
         serialized = json.dumps(evidence, sort_keys=True, default=str)
         digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
         return f"{kind}:{digest}"
+
+    @staticmethod
+    def _scenario_compatible(first: _Record, second: _Record) -> bool:
+        first_id = first.payload.get("scenario_id")
+        second_id = second.payload.get("scenario_id")
+        if first_id and second_id:
+            return first_id == second_id
+        if bool(first_id) != bool(second_id):
+            return False
+        # Legacy frames without scenario IDs must belong to the same short
+        # burst; do not correlate unrelated evidence across the full window.
+        return abs((first.timestamp - second.timestamp).total_seconds()) <= 0.01
 
     @staticmethod
     def _spoof_reasons(payload: Mapping[str, Any]) -> list[str]:

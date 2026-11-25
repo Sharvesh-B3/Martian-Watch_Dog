@@ -205,3 +205,140 @@ def test_mqtt_echo_with_same_evidence_is_deduplicated() -> None:
         signal.category == AttackCategory.COORDINATED_INTRUSION
         for signal in echoed
     )
+
+
+def test_held_scenario_does_not_reemit_after_window_rolls() -> None:
+    window = CorrelationWindow(60)
+    for moment in (BASE, BASE + timedelta(seconds=70)):
+        window.add(
+            "smart_lock_01",
+            {
+                "status": "UNLOCKED",
+                "scenario_id": "held-scenario",
+                "timestamp": iso(moment),
+            },
+            timestamp=moment,
+        )
+        window.add(
+            "power_meter_01",
+            {
+                "network_conns": 148,
+                "scenario_id": "held-scenario",
+                "timestamp": iso(moment),
+            },
+            timestamp=moment,
+        )
+        signals = window.evaluate(moment)
+        if moment == BASE:
+            assert any(
+                signal.category == AttackCategory.COORDINATED_INTRUSION
+                for signal in signals
+            )
+        else:
+            assert not any(
+                signal.category == AttackCategory.COORDINATED_INTRUSION
+                for signal in signals
+            )
+
+
+def test_different_scenario_ids_do_not_cross_correlate() -> None:
+    window = CorrelationWindow(60)
+    window.add(
+        "smart_lock_01",
+        {
+            "status": "UNLOCKED",
+            "scenario_id": "door-scenario",
+            "timestamp": iso(BASE),
+        },
+        timestamp=BASE,
+    )
+    window.add(
+        "power_meter_01",
+        {
+            "network_conns": 148,
+            "scenario_id": "meter-scenario",
+            "timestamp": iso(BASE),
+        },
+        timestamp=BASE,
+    )
+
+    signals = window.evaluate(BASE)
+
+    assert not any(
+        signal.category == AttackCategory.COORDINATED_INTRUSION
+        for signal in signals
+    )
+
+
+def test_tagged_and_legacy_evidence_do_not_cross_correlate() -> None:
+    window = CorrelationWindow(60)
+    window.add(
+        "smart_lock_01",
+        {
+            "status": "UNLOCKED",
+            "scenario_id": "tagged-scenario",
+            "timestamp": iso(BASE),
+        },
+        timestamp=BASE,
+    )
+    window.add(
+        "power_meter_01",
+        {"network_conns": 148, "timestamp": iso(BASE)},
+        timestamp=BASE,
+    )
+
+    signals = window.evaluate(BASE)
+
+    assert not any(
+        signal.category == AttackCategory.COORDINATED_INTRUSION
+        for signal in signals
+    )
+
+
+def test_new_legacy_burst_is_not_hidden_by_newer_held_scenario() -> None:
+    window = CorrelationWindow(60)
+    tagged = BASE
+    for canonical_id, payload in (
+        (
+            "smart_lock_01",
+            {"status": "UNLOCKED", "scenario_id": "held"},
+        ),
+        (
+            "power_meter_01",
+            {"network_conns": 148, "scenario_id": "held"},
+        ),
+    ):
+        window.add(canonical_id, payload, timestamp=tagged)
+    assert any(
+        signal.category == AttackCategory.COORDINATED_INTRUSION
+        for signal in window.evaluate(tagged)
+    )
+
+    legacy = BASE + timedelta(seconds=1)
+    window.add(
+        "smart_lock_01", {"status": "UNLOCKED"}, timestamp=legacy
+    )
+    window.add(
+        "power_meter_01", {"network_conns": 148}, timestamp=legacy
+    )
+
+    # A held scenario publishes again after the legacy burst and is therefore
+    # newer, but its fingerprint has already been emitted.
+    held_again = BASE + timedelta(seconds=2)
+    window.add(
+        "smart_lock_01",
+        {"status": "UNLOCKED", "scenario_id": "held"},
+        timestamp=held_again,
+    )
+    window.add(
+        "power_meter_01",
+        {"network_conns": 148, "scenario_id": "held"},
+        timestamp=held_again,
+    )
+
+    signals = window.evaluate(held_again)
+
+    assert any(
+        signal.category == AttackCategory.COORDINATED_INTRUSION
+        for signal in signals
+    )

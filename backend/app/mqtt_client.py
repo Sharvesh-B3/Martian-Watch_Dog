@@ -18,6 +18,7 @@ from backend.app.schemas import (
     DeviceUpdateEvent,
 )
 from backend.app.stream_hub import StreamHub
+from sim.common.protocol import is_internal_topic
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +123,7 @@ class MqttBridge:
         logger.warning("MQTT disconnected: %s", reason_code)
 
     def _on_message(self, client: Any, userdata: Any, message: Any) -> None:
-        if "/control/" in message.topic:
+        if is_internal_topic(message.topic):
             return
         try:
             payload = json.loads(message.payload.decode())
@@ -247,6 +248,8 @@ class MqttBridge:
                 status = DeviceStatus.QUARANTINED
             elif sim_state == "DECOY_ACTIVE":
                 status = DeviceStatus.DECOY
+            elif sim_state in {"WARNING", "COMPROMISED", "ATTACK_ACTIVE"}:
+                status = DeviceStatus.WARNING
             elif sim_state == "NORMAL":
                 status = (
                     DeviceStatus.NORMAL
@@ -272,16 +275,26 @@ class MqttBridge:
             status = str(payload.get("status", "")).upper()
             if status:
                 metrics["locked"] = status != "UNLOCKED"
+            if "door_closed" in payload:
+                metrics["door_closed"] = payload["door_closed"]
+            if "failed_attempts" in payload:
+                metrics["failed_attempts"] = payload["failed_attempts"]
             if "last_rfid" in payload:
                 metrics["last_badge"] = payload["last_rfid"]
-                metrics["failed_attempts"] = (
-                    3 if str(payload["last_rfid"]).upper() == "UNAUTHORIZED_BYPASS" else 0
-                )
+                if "failed_attempts" not in payload:
+                    metrics["failed_attempts"] = (
+                        3
+                        if str(payload["last_rfid"]).upper()
+                        == "UNAUTHORIZED_BYPASS"
+                        else 0
+                    )
         elif canonical_id == "rfid_scanner_01":
             if payload.get("badge_id"):
                 metrics["last_badge"] = payload["badge_id"]
+            if "scan_rate_per_min" in payload:
+                metrics["scan_rate_per_min"] = payload["scan_rate_per_min"]
         elif canonical_id == "air_quality_01":
-            for key in ("co2_ppm", "temp_c"):
+            for key in ("co2_ppm", "temp_c", "pm25"):
                 if key in payload:
                     metrics[key] = payload[key]
         elif canonical_id == "power_meter_01":
@@ -290,7 +303,13 @@ class MqttBridge:
             if "network_conns" in payload:
                 metrics["outbound_conns"] = payload["network_conns"]
         elif canonical_id == "decoy_twin_01":
-            for key in ("active_traps", "captured_payloads"):
+            for key in (
+                "active_traps",
+                "captured_payloads",
+                "last_source",
+                "last_command",
+                "last_payload_hash",
+            ):
                 if key in payload:
                     metrics[key] = payload[key]
 

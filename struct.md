@@ -3,19 +3,30 @@ life-support-watchdog/
 ├── .env.example                        # MQTT_HOST, MQTT_PORT, LLM_API_KEY
 ├── README.md                           # Lab isolation notes, setup & declared tools
 │
-├── sim/                                # [Role 1] IoT devices & 1-click Red Team attacks
+├── sim/                                # [Role 1] Multi-process IoT lab & Red Team
+│   ├── run_lab.py                      # One command: broker + nodes + attack controller
+│   ├── monitor.py                      # Human-readable MQTT security timeline
 │   ├── broker/
 │   │   └── mosquitto.conf
+│   ├── common/
+│   │   ├── mqtt_device.py              # Shared MQTT lifecycle, LWT, controls & metadata
+│   │   ├── protocol.py                 # Stable topics, IDs, run/scenario helpers
+│   │   └── settings.py                 # Seed, noise, broker and interval settings
 │   ├── devices/
 │   │   ├── smart_lock.py
 │   │   ├── rfid_scanner.py
 │   │   ├── air_quality.py
 │   │   ├── power_meter.py
-│   │   └── decoy_twin.py
-│   └── attacks/
-│       ├── spoof_sensor.py
-│       ├── coordinated_intrusion.py
-│       └── prompt_injection.py
+│   │   ├── cctv_camera.py              # Internal correlation evidence
+│   │   └── decoy_twin.py               # Active attacker capture and timeline
+│   ├── attacks/
+│   │   ├── controller.py               # Holds scenarios and emits attacker probes
+│   │   ├── scenarios.py                # Shared CLI/API attack definitions
+│   │   ├── spoof_sensor.py
+│   │   ├── coordinated_intrusion.py
+│   │   ├── prompt_injection.py
+│   │   └── red_team.py                 # Import-safe interactive control panel
+│   └── tests/                           # Device, scenario, control and decoy tests
 │
 ├── backend/                            # [Role 2 - YOU] FastAPI Agent & Guardrails
 │   ├── pyproject.toml / requirements.txt

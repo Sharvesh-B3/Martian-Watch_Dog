@@ -169,6 +169,26 @@ def test_inbound_mqtt_frame_schedules_detection_pipeline() -> None:
     assert scheduled == [True]
 
 
+def test_internal_simulator_topics_are_not_ingested_as_telemetry() -> None:
+    bridge, _, window = make_bridge()
+    scheduled: list[bool] = []
+    bridge.set_pipeline_callback(lambda: scheduled.append(True))
+    message = SimpleNamespace(
+        topic="campus/lab1/redteam/trigger",
+        payload=json.dumps(
+            {
+                "attack_type": "coordinated_intrusion",
+                "scenario_id": "scenario-1",
+            }
+        ).encode(),
+    )
+
+    bridge._on_message(None, None, message)
+
+    assert scheduled == []
+    assert window.evaluate() == []
+
+
 def test_injection_is_sanitized_and_feeds_correlation() -> None:
     bridge, _, window = make_bridge()
 

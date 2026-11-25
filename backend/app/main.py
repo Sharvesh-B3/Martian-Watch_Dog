@@ -51,6 +51,10 @@ async def lifespan(app: FastAPI):
     async def pipeline_worker() -> None:
         while True:
             await pipeline_requested.wait()
+            # Collect a short burst of cross-device MQTT frames before
+            # evaluating, preventing a coordinated scenario from first being
+            # emitted as an isolated port scan.
+            await asyncio.sleep(0.15)
             pipeline_requested.clear()
             try:
                 await asyncio.to_thread(run_pipeline, app)
