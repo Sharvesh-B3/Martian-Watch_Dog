@@ -74,7 +74,7 @@ export default function CommandCenter() {
   const toggleAgent = () => {
     const next = !agentEnabled;
     setAgentEnabled(next);
-    setAgentMode(next);
+    void setAgentMode(next);
   };
 
   const handleDecision = (
