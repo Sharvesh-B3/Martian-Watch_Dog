@@ -297,11 +297,27 @@ export async function fetchDashboardState(): Promise<DashboardState> {
 
 /**
  * Single seam for the Agent Active/Bypassed control.
- * Mock mode keeps the demo state machine in sync; live mode is intentionally
- * a no-op until a backend endpoint is agreed with Role 2.
+ * Mock mode keeps the demo state machine in sync; live mode POSTs to the
+ * backend, which writes the authoritative SYSTEM audit entry.
  */
 export function setAgentMode(enabled: boolean) {
-  if (!USE_MOCK_DATA) return;
+  if (!USE_MOCK_DATA) {
+    void fetch(`${API_BASE}/agent/mode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Agent mode update failed with ${response.status}`);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('Agent mode update failed', error);
+      });
+    return;
+  }
+
   if (mock.agentEnabled === enabled) return;
   mock.agentEnabled = enabled;
   addAudit(
