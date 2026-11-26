@@ -44,10 +44,10 @@ export default function AppHeader({
 
         <div className="brand-block">
           <span className="brand-mark" aria-hidden="true">
-            A
+            T
           </span>
           <div>
-            <span className="brand-name">Aegis Watchdog</span>
+            <span className="brand-name">Trinetra</span>
             <span className="console-title">Campus IoT security console</span>
           </div>
         </div>
