@@ -10,10 +10,12 @@ from backend.app.api.routes_approvals import router as approvals_router
 from backend.app.api.routes_incidents import router as incidents_router
 from backend.app.api.routes_stream import router as stream_router
 from backend.app.audit_db import AuditDB
+from backend.app.containment_gateway import TestContainmentGateway
 from backend.app.correlation_window import CorrelationWindow
 from backend.app.hitl_engine import HitlEngine
 from backend.app.llm_client import AgentDecision, LLMUnavailable
 from backend.app.mqtt_client import MqttBridge
+from backend.app.schemas import DeviceStatus
 from backend.app.stream_hub import StreamHub
 
 
@@ -60,7 +62,8 @@ def make_app(tmp_path: Path, llm: FakeLLM | None = None) -> tuple[FastAPI, Recor
     bridge._client = client  # type: ignore[assignment]
     db = AuditDB(tmp_path / "watchdog.db")
     agent = Agent(db, bridge, hub, llm or FakeLLM())  # type: ignore[arg-type]
-    hitl = HitlEngine(db, bridge, hub)
+    gateway = TestContainmentGateway()
+    hitl = HitlEngine(db, bridge, hub, gateway)
 
     app = FastAPI()
     app.state.settings = settings
@@ -70,6 +73,7 @@ def make_app(tmp_path: Path, llm: FakeLLM | None = None) -> tuple[FastAPI, Recor
     app.state.db = db
     app.state.agent = agent
     app.state.hitl = hitl
+    app.state.gateway = gateway
     app.include_router(incidents_router)
     app.include_router(approvals_router)
     app.include_router(stream_router)
@@ -84,6 +88,25 @@ def test_rest_lists_are_empty_on_fresh_db(tmp_path: Path) -> None:
     assert client.get("/api/incidents").json() == []
     assert client.get("/api/approvals").json() == []
     assert client.get("/api/audit-log").json() == []
+
+
+def test_sim_reset_restores_devices_and_route(tmp_path: Path) -> None:
+    app, mqtt, db = make_app(tmp_path)
+    app.state.bridge.set_device_status("smart_lock_01", DeviceStatus.QUARANTINED)
+    mqtt.published.clear()
+    client = TestClient(app)
+
+    response = client.post("/api/sim/reset")
+
+    assert response.json() == {"ok": True, "reset": True}
+    lock = next(
+        device
+        for device in app.state.bridge.device_snapshot()
+        if device.id == "smart_lock_01"
+    )
+    assert lock.status == DeviceStatus.NORMAL
+    assert "campus/lab1/redteam/reset" in [topic for topic, _, _ in mqtt.published]
+    assert any(entry.action == "LAB_RESET" for entry in db.list_audit())
 
 
 def test_coordinated_trigger_publishes_and_creates_pending_approval(

@@ -1175,6 +1175,10 @@ h3 {
   font-size: 14px;
 }
 
+.agent-control .button + .button {
+  margin-top: var(--s-2);
+}
+
 .scenario-list {
   margin-top: var(--s-6);
 }

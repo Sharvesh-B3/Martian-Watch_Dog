@@ -110,6 +110,11 @@ curl -X POST -H 'Content-Type: application/json' \
   http://127.0.0.1:9000/route/real
 ```
 
+For a full demo reset, open **Start simulation → Reset lab**. That restores all
+device states and baseline metrics, clears held attack scenarios, resets the
+gateway counters, and returns the network route to the real broker. It is also
+available as `POST /api/sim/reset`.
+
 ## 4. Integration contract
 
 - `GET /health`
@@ -117,6 +122,7 @@ curl -X POST -H 'Content-Type: application/json' \
 - `GET /api/approvals` → `ApprovalRequest[]`
 - `GET /api/audit-log` → `AuditEntry[]`
 - `POST /api/sim/trigger` body: `{"attack_type": "spoof_sensor|coordinated_intrusion|prompt_injection"}`
+- `POST /api/sim/reset` → `{ ok, reset }` restores devices, attacks and gateway route
 - `POST /api/approvals/{id}/decide` body: `{"decision": "approved|rejected"}`
 - `POST /api/agent/mode` body: `{"enabled": true|false}`
 - `WS /api/stream` → `device_update`, `new_incident`, `new_approval`, `audit_entry`

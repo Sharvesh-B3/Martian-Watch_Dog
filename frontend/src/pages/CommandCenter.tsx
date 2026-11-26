@@ -164,9 +164,11 @@ export default function CommandCenter() {
         agentEnabled={watchdog.agentEnabled}
         agentModePending={watchdog.agentModePending}
         simulationPending={watchdog.simulationPending}
+        resetPending={watchdog.resetPending}
         onClose={() => setOpenPanel(null)}
         onToggleAgent={watchdog.toggleAgent}
         onTrigger={watchdog.triggerAttack}
+        onReset={watchdog.resetSimulation}
       />
 
       <DeviceDetailPanel

@@ -1,4 +1,4 @@
-import { Bot, DoorOpen, FlaskConical, ShieldBan, Wind } from 'lucide-react';
+import { Bot, DoorOpen, FlaskConical, RotateCcw, ShieldBan, Wind } from 'lucide-react';
 import type { AttackType } from '../api/client';
 import SidePanel from './SidePanel';
 
@@ -7,9 +7,11 @@ interface Props {
   agentEnabled: boolean;
   agentModePending: boolean;
   simulationPending: AttackType | null;
+  resetPending: boolean;
   onClose: () => void;
   onToggleAgent: () => Promise<void>;
   onTrigger: (attackType: AttackType) => Promise<void>;
+  onReset: () => Promise<void>;
 }
 
 const SCENARIOS: Array<{
@@ -43,9 +45,11 @@ export default function SimulationMenu({
   agentEnabled,
   agentModePending,
   simulationPending,
+  resetPending,
   onClose,
   onToggleAgent,
   onTrigger,
+  onReset,
 }: Props) {
   const toggleAgent = () => {
     void onToggleAgent().catch(() => undefined);
@@ -53,6 +57,10 @@ export default function SimulationMenu({
 
   const trigger = (type: AttackType) => {
     void onTrigger(type).catch(() => undefined);
+  };
+
+  const reset = () => {
+    void onReset().catch(() => undefined);
   };
 
   return (
@@ -81,6 +89,15 @@ export default function SimulationMenu({
           onClick={toggleAgent}
         >
           {agentEnabled ? 'Bypass agent' : 'Activate agent'}
+        </button>
+        <button
+          className="button button--secondary button--wide"
+          type="button"
+          disabled={resetPending || agentModePending || simulationPending !== null}
+          onClick={reset}
+        >
+          <RotateCcw aria-hidden="true" size={17} />
+          {resetPending ? 'Resetting lab' : 'Reset lab'}
         </button>
       </section>
 

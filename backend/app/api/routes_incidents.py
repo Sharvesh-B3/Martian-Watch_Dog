@@ -6,9 +6,10 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from backend.app.containment_gateway import ContainmentGatewayError
 from backend.app.llm_client import LLMUnavailable
 from backend.app.pipeline import run_pipeline
-from backend.app.schemas import TriggerRequest
+from backend.app.schemas import Actor, AuditEntry, AuditEntryEvent, TriggerRequest
 from sim.attacks.scenarios import build_direct_frames, build_trigger
 
 logger = logging.getLogger(__name__)
@@ -52,3 +53,27 @@ def trigger_sim_attack(request: Request, body: TriggerRequest) -> Any:
     except LLMUnavailable as exc:
         return JSONResponse(status_code=503, content={"detail": str(exc)})
     return {"ok": True, "triggered": body.attack_type}
+
+
+@router.post("/sim/reset")
+def reset_sim_lab(request: Request) -> dict[str, Any]:
+    """Restore devices, held attacks and the gateway route to baseline."""
+    request.app.state.window.clear()
+    request.app.state.bridge.reset_devices()
+    request.app.state.bridge.publish_lab_reset()
+    try:
+        request.app.state.gateway.reset_to_real()
+    except ContainmentGatewayError as exc:
+        logger.warning("Lab reset could not confirm gateway route: %s", exc)
+
+    db = request.app.state.db
+    entry = AuditEntry(
+        id=db.next_id("aud"),
+        timestamp=db.utc_now(),
+        actor=Actor.SYSTEM,
+        action="LAB_RESET",
+        details="Operator reset restored devices and network route to baseline.",
+    )
+    db.insert_audit(entry)
+    request.app.state.hub.publish(AuditEntryEvent(entry=entry))
+    return {"ok": True, "reset": True}

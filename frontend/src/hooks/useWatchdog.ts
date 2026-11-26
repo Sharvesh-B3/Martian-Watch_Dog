@@ -3,6 +3,7 @@ import {
   USE_MOCK_DATA,
   decideApproval,
   fetchDashboardState,
+  resetLab,
   setAgentMode,
   subscribeToStream,
   triggerSimAttack,
@@ -61,6 +62,7 @@ export function useWatchdog() {
     null
   );
   const [decisionPending, setDecisionPending] = useState<string | null>(null);
+  const [resetPending, setResetPending] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -159,6 +161,20 @@ export function useWatchdog() {
     }
   };
 
+  const resetSimulation = async () => {
+    setResetPending(true);
+    setActionError(null);
+    try {
+      await resetLab();
+      setReloadKey((key) => key + 1);
+    } catch (error: unknown) {
+      setActionError(`Lab reset failed. ${messageFrom(error)}`);
+      throw error;
+    } finally {
+      setResetPending(false);
+    }
+  };
+
   const decide = async (
     approval: ApprovalRequest,
     decision: ApprovalDecision
@@ -203,10 +219,12 @@ export function useWatchdog() {
     agentModePending,
     simulationPending,
     decisionPending,
+    resetPending,
     retry: () => setReloadKey((key) => key + 1),
     dismissActionError: () => setActionError(null),
     toggleAgent,
     triggerAttack,
+    resetSimulation,
     decide,
   };
 }

@@ -84,7 +84,7 @@ def test_telemetry_maps_sim_id_and_metrics() -> None:
     assert len(hub.events) == before + 1
 
 
-def test_warning_survives_normal_sim_state_but_quarantine_applies() -> None:
+def test_normal_sim_state_clears_warning_and_quarantine_applies() -> None:
     bridge, _, _ = make_bridge()
     bridge.set_device_status("smart_lock_01", DeviceStatus.WARNING)
 
@@ -96,7 +96,7 @@ def test_warning_survives_normal_sim_state_but_quarantine_applies() -> None:
         device for device in bridge.device_snapshot()
         if device.id == "smart_lock_01"
     )
-    assert lock.status == DeviceStatus.WARNING
+    assert lock.status == DeviceStatus.NORMAL
 
     bridge.handle_payload(
         "campus/lab1/door_lock",
@@ -115,16 +115,46 @@ def test_control_command_uses_mapped_sim_topic() -> None:
     bridge._client = client  # type: ignore[assignment]
 
     assert bridge.publish_control("smart_lock_01", "QUARANTINE") is True
-    assert client.published == [
-        ("campus/lab1/control/door_lock_01", '{"action": "QUARANTINE"}', 1)
-    ]
+    topic, body, qos = client.published[0]
+    assert topic == "campus/lab1/control/door_lock_01"
+    assert json.loads(body)["action"] == "QUARANTINE"
+    assert qos == 1
 
     assert bridge.publish_control("decoy_twin_01", "DECOY") is True
-    assert client.published[-1] == (
-        "campus/lab1/control/decoy_twin_01",
-        '{"action": "DECOY"}',
-        1,
+    assert client.published[-1][0] == "campus/lab1/control/decoy_twin_01"
+    assert json.loads(client.published[-1][1])["action"] == "DECOY"
+
+
+def test_reset_devices_restores_baseline_and_streams_updates() -> None:
+    bridge, hub, _ = make_bridge()
+    bridge.set_device_status("smart_lock_01", DeviceStatus.QUARANTINED)
+    bridge.set_device_status(
+        "power_meter_01", DeviceStatus.WARNING, {"anomaly_flag": "PORT_SCAN"}
     )
+    before = len(hub.events)
+
+    devices = bridge.reset_devices()
+
+    assert len(devices) == 5
+    assert all(device.status != DeviceStatus.QUARANTINED for device in devices)
+    lock = next(device for device in devices if device.id == "smart_lock_01")
+    assert lock.status == DeviceStatus.NORMAL
+    assert lock.metrics == {"locked": True, "door_closed": True, "failed_attempts": 0}
+    assert len(hub.events) == before + 5
+
+
+def test_publish_lab_reset_targets_controller_and_all_devices() -> None:
+    bridge, _, _ = make_bridge()
+    client = RecordingClient()
+    bridge._client = client  # type: ignore[assignment]
+
+    bridge.publish_lab_reset()
+
+    topics = [item[0] for item in client.published]
+    assert topics[0] == "campus/lab1/redteam/reset"
+    assert "campus/lab1/control/door_lock_01" in topics
+    assert "campus/lab1/control/decoy_twin_01" in topics
+    assert all(json.loads(item[1])["action"] == "RESET" for item in client.published)
 
 
 def test_decoy_telemetry_keeps_virtual_node_separate_from_lock() -> None:

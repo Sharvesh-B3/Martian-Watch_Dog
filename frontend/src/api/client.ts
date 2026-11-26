@@ -387,6 +387,30 @@ export async function decideApproval(
   return { ok: true, id: approvalId, status: decision };
 }
 
+export async function resetLab(): Promise<{ ok: boolean; reset: boolean }> {
+  if (!USE_MOCK_DATA) {
+    const response = await fetch(`${API_BASE}/sim/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    if (!response.ok) throw new Error(`Reset failed with ${response.status}`);
+    return (await response.json()) as { ok: boolean; reset: boolean };
+  }
+
+  const devices = structuredClone(INITIAL_DEVICES);
+  mock.devices = devices;
+  for (const device of devices) {
+    emitMock({ type: 'device_update', device: { ...device } });
+  }
+  addAudit(
+    'SYSTEM',
+    'LAB_RESET',
+    'Operator reset restored devices and network route to baseline.'
+  );
+  return { ok: true, reset: true };
+}
+
 export async function triggerSimAttack(
   attackType: AttackType
 ): Promise<{ ok: boolean; triggered: AttackType }> {

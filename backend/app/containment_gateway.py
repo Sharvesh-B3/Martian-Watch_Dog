@@ -38,30 +38,40 @@ class GatewayRouteResult:
 class ContainmentGateway(Protocol):
     def route_to_decoy(self, incident_id: str) -> GatewayRouteResult: ...
 
+    def reset_to_real(self) -> GatewayRouteResult: ...
+
 
 class ContainmentGatewayClient:
     def __init__(self, settings: Any) -> None:
         self._base_url = str(settings.GATEWAY_CONTROL_URL).rstrip("/")
         self._timeout = float(settings.GATEWAY_TIMEOUT_SECONDS)
 
-    def route_to_decoy(self, incident_id: str) -> GatewayRouteResult:
+    def _post_route(
+        self, path: str, incident_id: str | None, expected: str
+    ) -> GatewayRouteResult:
         try:
             response = httpx.post(
-                f"{self._base_url}/route/decoy",
-                json={"incident_id": incident_id},
+                f"{self._base_url}{path}",
+                json={"incident_id": incident_id} if incident_id else {},
                 timeout=self._timeout,
             )
             response.raise_for_status()
             result = GatewayRouteResult.from_payload(response.json())
         except Exception as exc:
             raise ContainmentGatewayError(
-                f"Containment gateway did not confirm reroute: {exc}"
+                f"Containment gateway did not confirm route={expected}: {exc}"
             ) from exc
-        if result.route_target != "decoy":
+        if result.route_target != expected:
             raise ContainmentGatewayError(
                 f"Containment gateway returned route={result.route_target or 'unknown'}"
             )
         return result
+
+    def route_to_decoy(self, incident_id: str) -> GatewayRouteResult:
+        return self._post_route("/route/decoy", incident_id, "decoy")
+
+    def reset_to_real(self) -> GatewayRouteResult:
+        return self._post_route("/route/real", "RESET", "real")
 
 
 class TestContainmentGateway:
@@ -76,5 +86,17 @@ class TestContainmentGateway:
             real_bytes=0,
             decoy_bytes=0,
             switch_count=1,
+            attacker_reconnects=0,
+        )
+
+    def reset_to_real(self) -> GatewayRouteResult:
+        return GatewayRouteResult(
+            route_target="real",
+            upstream="test-real:1883",
+            disconnected_sessions=1,
+            active_sessions=0,
+            real_bytes=0,
+            decoy_bytes=0,
+            switch_count=0,
             attacker_reconnects=0,
         )

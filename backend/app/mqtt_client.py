@@ -204,11 +204,17 @@ class MqttBridge:
             logger.warning("No sim topic mapped for %s", canonical_id)
             return False
         topic = f"{self._settings.MQTT_TOPIC_PREFIX}/control/{sim_id}"
-        self._client.publish(
-            topic, json.dumps({"action": action}), qos=1
-        )
+        self._client.publish(topic, json.dumps({"action": action}), qos=1)
         logger.info("Published %s to %s", action, topic)
         return True
+
+    def publish_lab_reset(self) -> None:
+        """Clear held scenarios and reset every simulator device/gateway."""
+        self.publish_telemetry(
+            "redteam/reset", {"action": "RESET", "timestamp": utc_now()}
+        )
+        for canonical_id in DEVICE_METADATA:
+            self.publish_control(canonical_id, "RESET")
 
     # ----------------------------- device state ------------------------------
 
@@ -217,6 +223,17 @@ class MqttBridge:
             devices = [device.model_copy(deep=True) for device in self._devices.values()]
         for device in devices:
             self._broadcast_device(device)
+
+    def reset_devices(self) -> list[DeviceNode]:
+        """Restore backend device state immediately and stream each update."""
+        with self._lock:
+            self._devices = self._build_initial_devices()
+            devices = [
+                device.model_copy(deep=True) for device in self._devices.values()
+            ]
+        for device in devices:
+            self._broadcast_device(device)
+        return devices
 
     def device_snapshot(self) -> list[DeviceNode]:
         with self._lock:
@@ -276,11 +293,7 @@ class MqttBridge:
             elif sim_state in {"WARNING", "COMPROMISED", "ATTACK_ACTIVE"}:
                 status = DeviceStatus.WARNING
             elif sim_state == "NORMAL":
-                status = (
-                    DeviceStatus.NORMAL
-                    if device.status in (DeviceStatus.QUARANTINED, DeviceStatus.DECOY)
-                    else device.status
-                )
+                status = DeviceStatus.NORMAL
             else:
                 status = device.status
 

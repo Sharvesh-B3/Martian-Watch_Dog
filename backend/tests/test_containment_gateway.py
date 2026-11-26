@@ -33,6 +33,30 @@ def settings() -> SimpleNamespace:
     )
 
 
+def test_reset_confirms_real_route(monkeypatch) -> None:  # noqa: ANN001
+    def post(url: str, *, json: dict, timeout: float) -> Response:
+        assert url.endswith("/route/real")
+        assert json == {"incident_id": "RESET"}
+        return Response(
+            {
+                "route_target": "real",
+                "upstream": "127.0.0.1:1883",
+                "disconnected_sessions": 1,
+                "active_sessions": 0,
+                "real_bytes": 0,
+                "decoy_bytes": 0,
+                "switch_count": 0,
+                "attacker_reconnects": 0,
+            }
+        )
+
+    monkeypatch.setattr(httpx, "post", post)
+    result = ContainmentGatewayClient(settings()).reset_to_real()
+
+    assert result.route_target == "real"
+    assert result.disconnected_sessions == 1
+
+
 def test_route_to_decoy_requires_confirmation(monkeypatch) -> None:  # noqa: ANN001
     def post(url: str, *, json: dict, timeout: float) -> Response:
         assert url.endswith("/route/decoy")

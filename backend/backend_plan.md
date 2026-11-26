@@ -100,7 +100,7 @@ Decisions already agreed:
 **Goal:** the 3-minute qualification demo works against live services.
 
 - [x] Full service path verified with Mosquitto, sim devices, backend REST/WebSocket and live frontend contract against direct Gemini using a rotated local-only key; the same smoke also passes with the local OpenAI-compatible test provider.
-- [x] `python -m pytest -q backend/tests sim/tests` → **85 passed** across backend, gateway and Role 1 simulation coverage.
+- [x] `python -m pytest -q backend/tests sim/tests` → **89 passed** across backend, gateway, reset and Role 1 simulation coverage.
 - [x] Trigger all three attacks via `POST /api/sim/trigger`; WS client receives all four event types; approval decision activates quarantine/decoy in backend state.
 - [x] Confirm sim console prints `door_lock_01 -> QUARANTINED` and `decoy_twin_01 -> DECOY`.
 - [x] Persistence verified by reopening the same SQLite DB in a fresh FastAPI app instance; live server restart deferred.
@@ -124,6 +124,7 @@ Decisions already agreed:
 - `GET /api/approvals` → `ApprovalRequest[]`
 - `GET /api/audit-log` → `AuditEntry[]`
 - `POST /api/sim/trigger` body `{ "attack_type": "spoof_sensor" | "coordinated_intrusion" | "prompt_injection" }` → `{ ok, triggered }`
+- `POST /api/sim/reset` → `{ ok, reset }` restores devices, held attacks and gateway route
 - `POST /api/approvals/{id}/decide` body `{ "decision": "approved" | "rejected" }` → `{ ok, id, status }`
 - `POST /api/agent/mode` body `{ "enabled": boolean }` → `{ ok, enabled }`
 - WebSocket `/api/stream` events: `device_update`, `new_incident`, `new_approval`, `audit_entry`
