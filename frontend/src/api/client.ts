@@ -11,6 +11,12 @@ export type AttackType =
   | 'prompt_injection';
 
 export type ApprovalDecision = 'approved' | 'rejected';
+export type StreamStatus =
+  | 'mock'
+  | 'connecting'
+  | 'live'
+  | 'reconnecting'
+  | 'offline';
 
 export type StreamEvent =
   | { type: 'device_update'; device: DeviceNode }
@@ -31,6 +37,8 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/stream';
 
 // Flip to false (or set VITE_USE_MOCK_DATA=false) for live backend data.
 export const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA !== 'false';
+export const DEMO_CONTROLS_ENABLED =
+  import.meta.env.VITE_ENABLE_DEMO_CONTROLS !== 'false';
 
 export const INITIAL_DEVICES: DeviceNode[] = [
   {
@@ -296,21 +304,35 @@ export async function fetchDashboardState(): Promise<DashboardState> {
 }
 
 /**
- * Single seam for the Agent Active/Bypassed control.
- * Mock mode keeps the demo state machine in sync; live mode is intentionally
- * a no-op until a backend endpoint is agreed with Role 2.
+ * Single seam for the Agent Active/Bypassed control. Resolve only after the
+ * live backend acknowledges the change so attack triggers cannot race it.
  */
-export function setAgentMode(enabled: boolean) {
-  if (!USE_MOCK_DATA) return;
-  if (mock.agentEnabled === enabled) return;
-  mock.agentEnabled = enabled;
-  addAudit(
-    'SYSTEM',
-    enabled ? 'AGENT_ACTIVATED' : 'AGENT_BYPASSED',
-    enabled
-      ? 'Watchdog reasoning and containment restored.'
-      : 'Watchdog bypassed for control demo; attacks will go unmitigated.'
-  );
+export async function setAgentMode(
+  enabled: boolean
+): Promise<{ ok: boolean; enabled: boolean }> {
+  if (!USE_MOCK_DATA) {
+    const response = await fetch(`${API_BASE}/agent/mode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    if (!response.ok) {
+      throw new Error(`Agent mode update failed with ${response.status}`);
+    }
+    return (await response.json()) as { ok: boolean; enabled: boolean };
+  }
+
+  if (mock.agentEnabled !== enabled) {
+    mock.agentEnabled = enabled;
+    addAudit(
+      'SYSTEM',
+      enabled ? 'AGENT_ACTIVATED' : 'AGENT_BYPASSED',
+      enabled
+        ? 'Watchdog reasoning and containment restored.'
+        : 'Watchdog bypassed for control demo; attacks will go unmitigated.'
+    );
+  }
+  return { ok: true, enabled };
 }
 
 export async function decideApproval(
@@ -363,6 +385,30 @@ export async function decideApproval(
   }
 
   return { ok: true, id: approvalId, status: decision };
+}
+
+export async function resetLab(): Promise<{ ok: boolean; reset: boolean }> {
+  if (!USE_MOCK_DATA) {
+    const response = await fetch(`${API_BASE}/sim/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    if (!response.ok) throw new Error(`Reset failed with ${response.status}`);
+    return (await response.json()) as { ok: boolean; reset: boolean };
+  }
+
+  const devices = structuredClone(INITIAL_DEVICES);
+  mock.devices = devices;
+  for (const device of devices) {
+    emitMock({ type: 'device_update', device: { ...device } });
+  }
+  addAudit(
+    'SYSTEM',
+    'LAB_RESET',
+    'Operator reset restored devices and network route to baseline.'
+  );
+  return { ok: true, reset: true };
 }
 
 export async function triggerSimAttack(
@@ -543,8 +589,12 @@ function isStreamEvent(value: unknown): value is StreamEvent {
   );
 }
 
-export function subscribeToStream(onEvent: (event: StreamEvent) => void) {
+export function subscribeToStream(
+  onEvent: (event: StreamEvent) => void,
+  onStatus?: (status: StreamStatus) => void
+) {
   if (USE_MOCK_DATA) {
+    onStatus?.('mock');
     mockListeners.add(onEvent);
     return () => mockListeners.delete(onEvent);
   }
@@ -555,10 +605,12 @@ export function subscribeToStream(onEvent: (event: StreamEvent) => void) {
   let attempts = 0;
 
   const connect = () => {
+    onStatus?.(attempts === 0 ? 'connecting' : 'reconnecting');
     socket = new WebSocket(WS_URL);
 
     socket.onopen = () => {
       attempts = 0;
+      onStatus?.('live');
     };
     socket.onmessage = (evt) => {
       try {
@@ -572,6 +624,7 @@ export function subscribeToStream(onEvent: (event: StreamEvent) => void) {
     socket.onclose = () => {
       if (closed) return;
       attempts += 1;
+      onStatus?.('reconnecting');
       const delay = Math.min(1000 * 2 ** Math.min(attempts, 5), 15000);
       retryTimer = setTimeout(connect, delay);
     };
@@ -583,5 +636,6 @@ export function subscribeToStream(onEvent: (event: StreamEvent) => void) {
     closed = true;
     if (retryTimer) clearTimeout(retryTimer);
     socket?.close();
+    onStatus?.('offline');
   };
 }

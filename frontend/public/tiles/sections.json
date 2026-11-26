@@ -1,0 +1,32 @@
+{
+ "url": "http://127.0.0.1:5173/",
+ "views": {
+  "desktop": {
+   "width": 1440,
+   "height": 900,
+   "navH": 72,
+   "scrollHeight": 900,
+   "screens": 1,
+   "sections": [
+    {
+     "n": 1,
+     "tag": "section",
+     "id": "operations",
+     "cls": "operations section",
+     "top": 0,
+     "h": 900,
+     "hScreens": 1,
+     "offGrid": 0,
+     "tiles": [
+      {
+       "file": "desktop-sec-01-a.jpg",
+       "scrollY": 0
+      }
+     ]
+    }
+   ],
+   "consoleErrors": []
+  }
+ },
+ "at": "2026-11-25T22:42:48.780Z"
+}

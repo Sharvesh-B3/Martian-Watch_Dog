@@ -1,170 +1,208 @@
 import { useEffect, useState } from 'react';
-import ApprovalDrawer from '../components/ApprovalDrawer';
-import AuditLogPanel from '../components/AuditLogPanel';
-import IncidentFeed from '../components/IncidentFeed';
-import WingFloorplan from '../components/WingFloorplan';
-import {
-  USE_MOCK_DATA,
-  decideApproval,
-  fetchDashboardState,
-  setAgentMode,
-  subscribeToStream,
-  triggerSimAttack,
-  type ApprovalDecision,
-  type AttackType,
-  type StreamEvent,
-} from '../api/client';
-import type {
-  ApprovalRequest,
-  AuditEntry,
-  DeviceNode,
-  Incident,
-} from '../types/watchdog';
-
-function upsertById<T extends { id: string }>(list: T[], item: T): T[] {
-  const index = list.findIndex((entry) => entry.id === item.id);
-  if (index === -1) return [item, ...list];
-  const next = [...list];
-  next[index] = item;
-  return next;
-}
+import { LoaderCircle, Server, ShieldAlert } from 'lucide-react';
+import { DEMO_CONTROLS_ENABLED } from '../api/client';
+import ActivityDrawer from '../components/ActivityDrawer';
+import AppHeader from '../components/AppHeader';
+import ConnectionNotice from '../components/ConnectionNotice';
+import ContainmentProof from '../components/ContainmentProof';
+import DecisionPanel from '../components/DecisionPanel';
+import DeviceDetailPanel from '../components/DeviceDetailPanel';
+import DeviceRail from '../components/DeviceRail';
+import SimulationMenu from '../components/SimulationMenu';
+import ThreatWorkspace from '../components/ThreatWorkspace';
+import { useWatchdog } from '../hooks/useWatchdog';
 
 export default function CommandCenter() {
-  const [devices, setDevices] = useState<DeviceNode[]>([]);
-  const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
-  const [audit, setAudit] = useState<AuditEntry[]>([]);
-  const [agentEnabled, setAgentEnabled] = useState(true);
+  const watchdog = useWatchdog();
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [openPanel, setOpenPanel] = useState<
+    'activity' | 'simulation' | 'device' | null
+  >(null);
+  const [mobileView, setMobileView] = useState<'threat' | 'devices'>('threat');
 
   useEffect(() => {
-    let active = true;
+    if (watchdog.devices.length === 0) return;
+    if (
+      selectedDeviceId &&
+      watchdog.devices.some((device) => device.id === selectedDeviceId)
+    ) {
+      return;
+    }
+    const priority =
+      watchdog.devices.find((device) => device.status === 'quarantined') ??
+      watchdog.devices.find((device) => device.status === 'warning') ??
+      watchdog.devices[0];
+    setSelectedDeviceId(priority.id);
+  }, [selectedDeviceId, watchdog.devices]);
 
-    fetchDashboardState().then((data) => {
-      if (!active) return;
-      setDevices(data.devices);
-      setIncidents(data.incidents);
-      setApprovals(data.approvals);
-      setAudit(data.audit);
-    });
+  const liveAnnouncement = watchdog.activeIncident
+    ? `Incident updated. ${
+        watchdog.activeApproval ? 'Operator decision required.' : ''
+      }`
+    : 'No active incident.';
 
-    const handleEvent = (event: StreamEvent) => {
-      switch (event.type) {
-        case 'device_update':
-          setDevices((prev) => upsertById(prev, event.device));
-          break;
-        case 'new_incident':
-          setIncidents((prev) => upsertById(prev, event.incident));
-          break;
-        case 'new_approval':
-          setApprovals((prev) => upsertById(prev, event.approval));
-          break;
-        case 'audit_entry':
-          setAudit((prev) => upsertById(prev, event.entry));
-          break;
-      }
-    };
+  const selectedDevice =
+    watchdog.devices.find((device) => device.id === selectedDeviceId) ?? null;
+  const decoyDevice =
+    watchdog.devices.find((device) => device.id === 'decoy_twin_01') ?? null;
+  const rerouteConfirmed =
+    decoyDevice?.metrics.route_target === 'decoy' &&
+    decoyDevice.metrics.route_confirmed === true;
+  const panelApproval = watchdog.activeApproval ?? watchdog.approvals[0] ?? null;
 
-    const unsubscribe = subscribeToStream(handleEvent);
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, []);
-
-  const toggleAgent = () => {
-    const next = !agentEnabled;
-    setAgentEnabled(next);
-    setAgentMode(next);
+  const selectDevice = (deviceId: string, moveToDevices = false) => {
+    setSelectedDeviceId(deviceId);
+    if (moveToDevices) setMobileView('devices');
+    if (window.matchMedia('(max-width: 1199px)').matches) {
+      setOpenPanel('device');
+    }
   };
-
-  const handleDecision = (
-    approval: ApprovalRequest,
-    decision: ApprovalDecision
-  ) => {
-    void decideApproval(approval.id, decision).catch((error: unknown) => {
-      console.error('Approval decision failed', error);
-    });
-  };
-
-  const handleTriggerAttack = (attackType: AttackType) => {
-    void triggerSimAttack(attackType).catch((error: unknown) => {
-      console.error('Attack trigger failed', error);
-    });
-  };
-
-  const pendingApprovals = approvals.filter((a) => a.status === 'pending');
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 font-sans">
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4 mb-6">
-        <div>
-          <div className="flex items-center gap-3">
-            <span className="h-3 w-3 rounded-full bg-emerald-400 animate-ping" />
-            <h1 className="text-2xl font-bold tracking-tight">
-              AEGIS WATCHDOG // Campus IoT SOC
-            </h1>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Isolated Docker MQTT Lab • Sense → Think → Act → Explain • HITL
-            Enforced • {USE_MOCK_DATA ? 'MOCK LAB' : 'LIVE BACKEND'}
-          </p>
-        </div>
+    <div className="app-shell">
+      <AppHeader
+        streamStatus={watchdog.streamStatus}
+        agentEnabled={watchdog.agentEnabled}
+        deviceCount={watchdog.devices.length}
+        demoControlsEnabled={DEMO_CONTROLS_ENABLED}
+        onOpenActivity={() => setOpenPanel('activity')}
+        onOpenSimulation={() => setOpenPanel('simulation')}
+      />
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={toggleAgent}
-            className={`px-3 py-1.5 rounded text-xs font-semibold border transition ${
-              agentEnabled
-                ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300'
-                : 'bg-rose-600/20 border-rose-500 text-rose-300'
-            }`}
-          >
-            {agentEnabled
-              ? '● WATCHDOG AGENT: ACTIVE'
-              : '○ WATCHDOG AGENT: BYPASSED'}
-          </button>
+      <p className="sr-only" aria-live="polite">
+        {liveAnnouncement}
+      </p>
 
-          <div className="h-6 w-px bg-slate-800 mx-1" />
-
-          <button
-            type="button"
-            onClick={() => handleTriggerAttack('spoof_sensor')}
-            className="px-3 py-1.5 rounded text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300"
-          >
-            ⚡ Sim: Spoof Sensor
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTriggerAttack('coordinated_intrusion')}
-            className="px-3 py-1.5 rounded text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-700 text-rose-300"
-          >
-            ⚡ Sim: Coordinated Breach
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTriggerAttack('prompt_injection')}
-            className="px-3 py-1.5 rounded text-xs font-medium bg-slate-900 hover:bg-slate-800 border border-slate-700 text-purple-300"
-          >
-            ⚡ Sim: Prompt Injection
-          </button>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-7 space-y-6">
-          <WingFloorplan devices={devices} />
-          <AuditLogPanel entries={audit} />
-        </div>
-
-        <div className="lg:col-span-5 space-y-6">
-          <ApprovalDrawer
-            approvals={pendingApprovals}
-            onDecision={handleDecision}
+      <main id="top">
+        <section
+          className="operations section"
+          id="operations"
+          data-mobile-view={mobileView}
+          data-has-decision="true"
+        >
+          <div className="app-wrap wrap">
+          <ConnectionNotice
+            loadError={watchdog.loadError}
+            actionError={watchdog.actionError}
+            streamStatus={watchdog.streamStatus}
+            onRetry={watchdog.retry}
+            onDismissActionError={watchdog.dismissActionError}
           />
-          <IncidentFeed incidents={incidents} />
-        </div>
-      </div>
+
+          {watchdog.loading && watchdog.devices.length === 0 ? (
+            <section className="loading-state" aria-label="Connecting to lab">
+              <LoaderCircle aria-hidden="true" size={24} />
+              <h2>Connecting to the lab</h2>
+              <p>Loading devices, incidents and operator decisions.</p>
+            </section>
+          ) : (
+            <div
+              className="operations-grid"
+              data-has-decision="true"
+              data-mobile-view={mobileView}
+            >
+              <div className="mobile-view-switch" role="tablist" aria-label="Operations view">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mobileView === 'threat'}
+                  onClick={() => setMobileView('threat')}
+                >
+                  <ShieldAlert aria-hidden="true" size={17} />
+                  Threat
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mobileView === 'devices'}
+                  onClick={() => setMobileView('devices')}
+                >
+                  <Server aria-hidden="true" size={17} />
+                  Devices
+                </button>
+              </div>
+
+              <DeviceRail
+                devices={watchdog.devices}
+                selectedId={selectedDeviceId}
+                onSelect={(deviceId) => selectDevice(deviceId)}
+              />
+
+              <ThreatWorkspace
+                incident={watchdog.activeIncident}
+                devices={watchdog.devices}
+                selectedDeviceId={selectedDeviceId}
+                onSelectDevice={(deviceId) => selectDevice(deviceId, true)}
+              />
+
+              <div className="right-rail">
+                {panelApproval ? (
+                  <DecisionPanel
+                    approval={panelApproval}
+                    devices={watchdog.devices}
+                    pending={
+                      panelApproval.status === 'pending' &&
+                      watchdog.decisionPending === panelApproval.id
+                    }
+                    replayPending={
+                      watchdog.simulationPending === 'coordinated_intrusion'
+                    }
+                    canReplay={watchdog.agentEnabled}
+                    onDecision={watchdog.decide}
+                    onReplay={() =>
+                      watchdog.triggerAttack('coordinated_intrusion')
+                    }
+                  />
+                ) : (
+                  <aside
+                    className="decision-panel decision-panel--idle"
+                    aria-labelledby="decision-heading"
+                  >
+                    <div className="decision-panel__icon" aria-hidden="true">
+                      <ShieldAlert size={23} />
+                    </div>
+                    <span className="section-kicker">Human approval standby</span>
+                    <h2 id="decision-heading">No decision required</h2>
+                    <p className="decision-panel__copy">
+                      High-risk containment requests will appear here with full
+                      context before any action executes.
+                    </p>
+                  </aside>
+                )}
+                {rerouteConfirmed && decoyDevice && (
+                  <ContainmentProof decoy={decoyDevice} />
+                )}
+              </div>
+            </div>
+          )}
+          </div>
+        </section>
+      </main>
+
+      <ActivityDrawer
+        open={openPanel === 'activity'}
+        incidents={watchdog.incidents}
+        audit={watchdog.audit}
+        onClose={() => setOpenPanel(null)}
+      />
+
+      <SimulationMenu
+        open={openPanel === 'simulation'}
+        agentEnabled={watchdog.agentEnabled}
+        agentModePending={watchdog.agentModePending}
+        simulationPending={watchdog.simulationPending}
+        resetPending={watchdog.resetPending}
+        onClose={() => setOpenPanel(null)}
+        onToggleAgent={watchdog.toggleAgent}
+        onTrigger={watchdog.triggerAttack}
+        onReset={watchdog.resetSimulation}
+      />
+
+      <DeviceDetailPanel
+        open={openPanel === 'device'}
+        device={selectedDevice}
+        onClose={() => setOpenPanel(null)}
+      />
     </div>
   );
 }

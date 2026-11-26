@@ -10,7 +10,7 @@
 1. **Cross-Device Correlation (Not Single-Sensor Thresholds):**
    Correlates telemetry across a 60-second rolling window for an entire simulated **Campus Lab Wing** (`smart_lock_01`, `rfid_scanner_01`, `air_quality_01`, `power_meter_01`, and `decoy_twin_01`). Detects coordinated physical + cyber breaches (e.g., door unlocking without a matching RFID scan right after outbound port scanning).
 2. **Active Deception ("Decoy Twin" Containment):**
-   Instead of merely raising an alert, approved containment isolates compromised MQTT topics and reroutes attackers to a synthetic **Decoy Twin** honeypot node while locking down physical access.
+   Instead of merely raising an alert, approved containment locks down physical access, disconnects the attacker TCP session and switches the same MQTT gateway endpoint from the real broker to an isolated **Decoy Twin** broker with independently measured route and byte counters.
 3. **Live Prompt-Injection Defense (Rule 8 Showcase):**
    Sanitizes untrusted sensor payloads before LLM reasoning and demonstrates live interception of adversarial prompt injections hidden inside telemetry metadata (`"IGNORE PREVIOUS INSTRUCTIONS..."`).
 4. **Human-in-the-Loop + Immutable Audit Trail (Rule 7 Compliance):**
@@ -23,7 +23,7 @@
 ### Role 1 — IoT Lab & Red Team Lead (`sim/`)
 * **Deliverables:**
   * Isolated Docker Compose setup with **Eclipse Mosquitto** MQTT broker (`sim/broker/mosquitto.conf`) and zero external network bridges.
-  * 5 simulated Python IoT nodes (`smart_lock.py`, `rfid_scanner.py`, `air_quality.py`, `power_meter.py`, `decoy_twin.py`) publishing realistic synthetic telemetry.
+  * 5 dashboard Python IoT nodes (`smart_lock.py`, `rfid_scanner.py`, `air_quality.py`, `power_meter.py`, `decoy_twin.py`) plus an internal CCTV evidence node, each running independently and publishing realistic synthetic telemetry.
   * 3 automated Red Team attack scripts (`spoof_sensor.py`, `coordinated_intrusion.py`, `prompt_injection.py`) triggerable via CLI or API.
 * **Key Check:** Verify lab isolation and 100% synthetic data for organiser lab inspection.
 

@@ -228,3 +228,12 @@ node_modules/
 # Local environment overrides
 .env.local
 .env.*.local
+
+# Local agent/design tooling and generated review captures
+.agents/
+skills-lock.json
+frontend/.taste-skill/
+frontend/shots/
+
+# Role 2 backend runtime data
+backend/data/
