@@ -3,7 +3,10 @@
 from collections.abc import Mapping
 import hashlib
 import json
+import os
 from typing import Any
+
+import paho.mqtt.client as mqtt
 
 from sim.common.mqtt_device import BaseMqttDevice, run_device
 from sim.common.protocol import utc_now
@@ -18,9 +21,55 @@ class DecoyTwinDevice(BaseMqttDevice):
         self.last_source = "NONE"
         self.last_command = "NONE"
         self.last_payload_hash = "NONE"
+        self.decoy_host = os.getenv("SIM_DECOY_MQTT_HOST", "127.0.0.1")
+        self.decoy_port = int(os.getenv("SIM_DECOY_MQTT_PORT", "1885"))
+        self.decoy_client = mqtt.Client(
+            mqtt.CallbackAPIVersion.VERSION2,
+            client_id="decoy-twin-capture",
+        )
+        self.decoy_client.on_connect = self._on_decoy_connect
+        self.decoy_client.on_message = self._on_decoy_message
 
     def extra_subscriptions(self) -> tuple[str, ...]:
-        return (f"{self.settings.topic_prefix}/attacker/#",)
+        return ()
+
+    def _on_decoy_connect(
+        self,
+        client: mqtt.Client,
+        userdata: Any,
+        flags: Any,
+        reason_code: Any,
+        properties: Any,
+    ) -> None:
+        if getattr(reason_code, "is_failure", False):
+            return
+        client.subscribe(f"{self.settings.topic_prefix}/attacker/#", qos=1)
+        client.publish(
+            f"{self.settings.topic_prefix}/environment",
+            json.dumps({"environment": "DECOY_LAB", "timestamp": utc_now()}),
+            qos=1,
+            retain=True,
+        )
+        self.log(f"capture broker connected at {self.decoy_host}:{self.decoy_port}")
+
+    def _on_decoy_message(
+        self, client: mqtt.Client, userdata: Any, message: mqtt.MQTTMessage
+    ) -> None:
+        try:
+            payload = json.loads(message.payload.decode())
+        except Exception:
+            return
+        if isinstance(payload, dict):
+            self.handle_extra_message(message.topic, payload)
+
+    def run(self) -> None:
+        self.decoy_client.connect(self.decoy_host, self.decoy_port, 30)
+        self.decoy_client.loop_start()
+        try:
+            super().run()
+        finally:
+            self.decoy_client.disconnect()
+            self.decoy_client.loop_stop()
 
     def on_attack(self, action: str, payload: Mapping[str, Any]) -> bool:
         return False

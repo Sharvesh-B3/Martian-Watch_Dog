@@ -123,11 +123,14 @@ class MqttBridge:
         logger.warning("MQTT disconnected: %s", reason_code)
 
     def _on_message(self, client: Any, userdata: Any, message: Any) -> None:
-        if is_internal_topic(message.topic):
-            return
         try:
             payload = json.loads(message.payload.decode())
         except (UnicodeDecodeError, json.JSONDecodeError):
+            return
+        if message.topic.endswith("/gateway/status") and isinstance(payload, dict):
+            self._handle_gateway_status(payload)
+            return
+        if is_internal_topic(message.topic):
             return
         if isinstance(payload, dict):
             self.handle_payload(message.topic, payload)
@@ -137,6 +140,28 @@ class MqttBridge:
                     callback()
                 except Exception:
                     logger.exception("Failed to schedule telemetry pipeline")
+
+    def _handle_gateway_status(self, payload: Mapping[str, Any]) -> None:
+        keys = (
+            "route_target",
+            "upstream",
+            "active_sessions",
+            "connection_count",
+            "attacker_reconnects",
+            "switch_count",
+            "real_bytes",
+            "decoy_bytes",
+            "last_switch_at",
+            "incident_id",
+            "last_error",
+        )
+        metrics = {key: payload[key] for key in keys if key in payload}
+        metrics["route_confirmed"] = payload.get("route_target") == "decoy"
+        self.set_device_status(
+            "decoy_twin_01",
+            DeviceStatus.DECOY,
+            metrics,
+        )
 
     # ------------------------------- pipeline --------------------------------
 

@@ -2,7 +2,9 @@
 
 from dataclasses import dataclass
 import json
+import os
 from typing import Any, Literal
+from urllib import request
 
 import paho.mqtt.client as mqtt
 
@@ -77,13 +79,35 @@ def publish_reset(
 ) -> None:
     prefix = prefix.rstrip("/")
     reset = {"action": "RESET", "timestamp": utc_now()}
-    client.publish(f"{prefix}/redteam/reset", json.dumps(reset), qos=1)
+    results = [
+        client.publish(f"{prefix}/redteam/reset", json.dumps(reset), qos=1)
+    ]
     for device_id in DEVICE_IDS:
-        client.publish(
-            f"{prefix}/control/{device_id}",
-            json.dumps(reset),
-            qos=1,
+        results.append(
+            client.publish(
+                f"{prefix}/control/{device_id}",
+                json.dumps(reset),
+                qos=1,
+            )
         )
+    for result in results:
+        if hasattr(result, "wait_for_publish"):
+            result.wait_for_publish(timeout=5)
+    gateway_url = os.getenv("SIM_GATEWAY_CONTROL_URL")
+    if gateway_url:
+        try:
+            body = json.dumps({"incident_id": "RESET"}).encode()
+            request.urlopen(
+                request.Request(
+                    f"{gateway_url.rstrip('/')}/route/real",
+                    data=body,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                ),
+                timeout=3,
+            ).close()
+        except OSError:
+            pass
 
 
 def build_direct_frames(

@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from backend.app.agent import AgentResult
 from backend.app.audit_db import AuditDB
 from backend.app.correlation_window import CorrelationWindow
+from backend.app.containment_gateway import ContainmentGatewayError
 from backend.app.hitl_engine import HitlEngine
 from backend.app.mqtt_client import MqttBridge
 from backend.app.schemas import Actor, AttackCategory, DeviceStatus, Incident
@@ -18,7 +19,9 @@ class RecordingClient:
         self.published.append((topic, payload, qos))
 
 
-def make_engine(tmp_path: Path) -> tuple[HitlEngine, AuditDB, MqttBridge, RecordingClient, StreamHub]:
+def make_engine(
+    tmp_path: Path, gateway=None
+) -> tuple[HitlEngine, AuditDB, MqttBridge, RecordingClient, StreamHub]:
     settings = SimpleNamespace(
         MQTT_HOST="127.0.0.1",
         MQTT_PORT=1883,
@@ -29,7 +32,12 @@ def make_engine(tmp_path: Path) -> tuple[HitlEngine, AuditDB, MqttBridge, Record
     client = RecordingClient()
     bridge._client = client  # type: ignore[assignment]
     db = AuditDB(tmp_path / "watchdog.db")
-    return HitlEngine(db, bridge, hub), db, bridge, client, hub
+    return HitlEngine(db, bridge, hub, gateway), db, bridge, client, hub
+
+
+class FailingGateway:
+    def route_to_decoy(self, incident_id: str):  # noqa: ANN201
+        raise ContainmentGatewayError("gateway unavailable")
 
 
 def make_result(
@@ -153,6 +161,7 @@ def test_approve_publishes_containment_and_activates_decoy(tmp_path: Path) -> No
         entry.action == "DECOY_ACTIVATED" and entry.actor == Actor.AI_AGENT
         for entry in audits
     )
+    assert any(entry.action == "NETWORK_REROUTE_APPLIED" for entry in audits)
     events = []
     while not queue.empty():
         events.append(queue.get_nowait())
@@ -192,3 +201,26 @@ def test_second_decision_is_a_no_op(tmp_path: Path) -> None:
     assert again is not None and again.status == "approved"
     assert len(client.published) == 2
     assert sum(entry.action == "APPROVAL_REJECTED" for entry in db.list_audit()) == 0
+
+
+def test_gateway_failure_keeps_approval_pending(tmp_path: Path) -> None:
+    engine, db, bridge, client, _ = make_engine(tmp_path, FailingGateway())
+    result = make_result(db, approval_status="pending")
+    approval = engine.handle_signals([result])[0]
+
+    try:
+        engine.decide(approval.id, "approved")
+    except ContainmentGatewayError:
+        pass
+    else:
+        raise AssertionError("gateway failure was not propagated")
+
+    stored = next(item for item in db.list_approvals() if item.id == approval.id)
+    assert stored.status == "pending"
+    assert client.published == []
+    assert any(entry.action == "NETWORK_REROUTE_FAILED" for entry in db.list_audit())
+    lock = next(
+        device for device in bridge.device_snapshot()
+        if device.id == "smart_lock_01"
+    )
+    assert lock.status == DeviceStatus.NORMAL

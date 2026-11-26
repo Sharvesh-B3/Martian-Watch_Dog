@@ -21,7 +21,10 @@ COMPONENT_MODULES = (
     "sim.devices.cctv_camera",
     "sim.devices.decoy_twin",
     "sim.attacks.controller",
+    "sim.attacks.network_attacker",
 )
+
+BROKER_SERVICES = ("mosquitto", "mosquitto-decoy")
 
 
 def broker_is_running() -> bool:
@@ -32,14 +35,15 @@ def broker_is_running() -> bool:
         text=True,
         check=False,
     )
-    return "mosquitto" in result.stdout.split()
+    running = set(result.stdout.split())
+    return all(service in running for service in BROKER_SERVICES)
 
 
 def start_broker() -> bool:
     already_running = broker_is_running()
     if not already_running:
         subprocess.run(
-            ["docker", "compose", "up", "-d", "mosquitto"],
+            ["docker", "compose", "up", "-d", *BROKER_SERVICES],
             cwd=REPO_ROOT,
             check=True,
         )
@@ -106,12 +110,18 @@ def main(argv: list[str] | None = None) -> None:
         if not args.no_broker:
             started_broker = start_broker()
         wait_for_broker(args.broker_host, args.broker_port)
+        wait_for_broker(args.broker_host, 1885)
 
         env = os.environ.copy()
         env.update(
             {
                 "SIM_MQTT_HOST": args.broker_host,
                 "SIM_MQTT_PORT": str(args.broker_port),
+                "SIM_DECOY_MQTT_HOST": args.broker_host,
+                "SIM_DECOY_MQTT_PORT": "1885",
+                "SIM_GATEWAY_HOST": "127.0.0.1",
+                "SIM_GATEWAY_PORT": "1884",
+                "SIM_GATEWAY_CONTROL_URL": "http://127.0.0.1:9000",
                 "SIM_SEED": str(args.seed),
                 "SIM_NOISE": str(noise),
                 "SIM_INTERVAL_SECONDS": str(args.interval),
@@ -119,7 +129,16 @@ def main(argv: list[str] | None = None) -> None:
                 "SIM_LOG_LEVEL": args.log_level.upper(),
             }
         )
-        modules = list(COMPONENT_MODULES)
+        modules = ["sim.containment_gateway"]
+        children.append(
+            subprocess.Popen(
+                [sys.executable, "-m", "sim.containment_gateway"],
+                cwd=REPO_ROOT,
+                env=env,
+            )
+        )
+        wait_for_broker("127.0.0.1", 9000)
+        modules.extend(COMPONENT_MODULES)
         if args.monitor:
             modules.append("sim.monitor")
 
@@ -128,7 +147,7 @@ def main(argv: list[str] | None = None) -> None:
             f"(run_id={run_id}, seed={args.seed}, noise={noise})",
             flush=True,
         )
-        for module in modules:
+        for module in modules[1:]:
             children.append(
                 subprocess.Popen(
                     [sys.executable, "-m", module],
@@ -151,7 +170,8 @@ def main(argv: list[str] | None = None) -> None:
         stop_children(children)
         if started_broker and not args.keep_broker:
             subprocess.run(
-                ["docker", "compose", "stop", "mosquitto"],
+                ["docker", "compose", "stop", *BROKER_SERVICES],
+                # Stop only brokers started by this launcher.
                 cwd=REPO_ROOT,
                 check=False,
             )

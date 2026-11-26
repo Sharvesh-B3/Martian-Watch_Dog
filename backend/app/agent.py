@@ -21,6 +21,13 @@ from backend.app.schemas import (
 )
 from backend.app.stream_hub import StreamHub
 
+INCIDENT_TITLES = {
+    "sensor_spoofing": "Spoofed sensor reading detected",
+    "coordinated_intrusion": "Coordinated physical and network intrusion",
+    "prompt_injection": "Prompt injection blocked",
+    "anomalous_traffic": "Anomalous network traffic detected",
+}
+
 
 @dataclass(frozen=True)
 class AgentResult:
@@ -79,7 +86,7 @@ class Agent:
             timestamp=self._db.utc_now(),
             severity=signal.severity,
             category=signal.category,
-            title=decision.sense,
+            title=INCIDENT_TITLES[signal.category.value],
             plain_english_explanation=(
                 f"{decision.think} {decision.explain}".strip()
             ),

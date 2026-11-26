@@ -5,9 +5,11 @@ life-support-watchdog/
 │
 ├── sim/                                # [Role 1] Multi-process IoT lab & Red Team
 │   ├── run_lab.py                      # One command: broker + nodes + attack controller
+│   ├── containment_gateway.py           # Real L4 route switch: real broker ↔ decoy broker
 │   ├── monitor.py                      # Human-readable MQTT security timeline
 │   ├── broker/
-│   │   └── mosquitto.conf
+│   │   ├── mosquitto.conf
+│   │   └── decoy.conf                   # Isolated Decoy MQTT broker
 │   ├── common/
 │   │   ├── mqtt_device.py              # Shared MQTT lifecycle, LWT, controls & metadata
 │   │   ├── protocol.py                 # Stable topics, IDs, run/scenario helpers
@@ -21,6 +23,7 @@ life-support-watchdog/
 │   │   └── decoy_twin.py               # Active attacker capture and timeline
 │   ├── attacks/
 │   │   ├── controller.py               # Holds scenarios and emits attacker probes
+│   │   ├── network_attacker.py          # Connects only through the stable L4 gateway
 │   │   ├── scenarios.py                # Shared CLI/API attack definitions
 │   │   ├── spoof_sensor.py
 │   │   ├── coordinated_intrusion.py
@@ -39,6 +42,7 @@ life-support-watchdog/
 │       ├── guardrail.py                # Prompt-injection sanitizer & untrusted-data framing
 │       ├── agent.py                    # Anomaly pre-filter + LLM reasoning (Sense -> Think -> Act)
 │       ├── hitl_engine.py              # Human-in-the-Loop queue & decision enforcement
+│       ├── containment_gateway.py       # Confirmed network reroute client
 │       ├── audit_db.py                 # SQLite store for incidents, approvals & audit logs
 │       └── api/
 │           ├── routes_incidents.py     # GET /api/incidents, GET /api/audit-log, POST /api/sim/trigger
@@ -55,9 +59,15 @@ life-support-watchdog/
         ├── api/
         │   └── client.ts               # REST helpers + live WebSocket/SSE subscription
         ├── components/
-        │   ├── WingFloorplan.tsx       # Live zone/device cards (Normal / Alert / Quarantined)
-        │   ├── IncidentFeed.tsx        # Plain-English AI reasoning & prompt-injection flags
-        │   ├── ApprovalDrawer.tsx      # Human-in-the-Loop Approve / Reject controls
-        │   └── AuditLogPanel.tsx       # Immutable action & operator decision log
+        │   ├── AppHeader.tsx           # Live connection, Agent and console controls
+        │   ├── DeviceRail.tsx          # Compact device state and selected metrics
+        │   ├── CorrelationMap.tsx      # Cross-device incident evidence
+        │   ├── ThreatWorkspace.tsx     # Active incident and guardrail evidence
+        │   ├── DecisionPanel.tsx       # Contextual HITL Approve / Reject controls
+        │   ├── ContainmentProof.tsx    # Confirmed gateway route and byte counters
+        │   ├── ActivityDrawer.tsx      # Incident and audit history on demand
+        │   └── SimulationMenu.tsx      # Lab-only attack and Agent controls
+        ├── hooks/
+        │   └── useWatchdog.ts          # REST/WS state, actions and reconnection
         └── pages/
             └── CommandCenter.tsx

@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     LOCAL_LLM_BASE_URL: str | None = None
     LOCAL_LLM_MODEL: str = "local-model"
     LLM_TIMEOUT_SECONDS: float = 30.0
+    LLM_MAX_RETRIES: int = 2
+
+    # Isolated containment gateway
+    GATEWAY_CONTROL_URL: str = "http://127.0.0.1:9000"
+    GATEWAY_TIMEOUT_SECONDS: float = 5.0
 
     # Persistence
     DB_PATH: str = "backend/data/watchdog.db"

@@ -11,6 +11,12 @@ export type AttackType =
   | 'prompt_injection';
 
 export type ApprovalDecision = 'approved' | 'rejected';
+export type StreamStatus =
+  | 'mock'
+  | 'connecting'
+  | 'live'
+  | 'reconnecting'
+  | 'offline';
 
 export type StreamEvent =
   | { type: 'device_update'; device: DeviceNode }
@@ -31,6 +37,8 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/stream';
 
 // Flip to false (or set VITE_USE_MOCK_DATA=false) for live backend data.
 export const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA !== 'false';
+export const DEMO_CONTROLS_ENABLED =
+  import.meta.env.VITE_ENABLE_DEMO_CONTROLS !== 'false';
 
 export const INITIAL_DEVICES: DeviceNode[] = [
   {
@@ -557,8 +565,12 @@ function isStreamEvent(value: unknown): value is StreamEvent {
   );
 }
 
-export function subscribeToStream(onEvent: (event: StreamEvent) => void) {
+export function subscribeToStream(
+  onEvent: (event: StreamEvent) => void,
+  onStatus?: (status: StreamStatus) => void
+) {
   if (USE_MOCK_DATA) {
+    onStatus?.('mock');
     mockListeners.add(onEvent);
     return () => mockListeners.delete(onEvent);
   }
@@ -569,10 +581,12 @@ export function subscribeToStream(onEvent: (event: StreamEvent) => void) {
   let attempts = 0;
 
   const connect = () => {
+    onStatus?.(attempts === 0 ? 'connecting' : 'reconnecting');
     socket = new WebSocket(WS_URL);
 
     socket.onopen = () => {
       attempts = 0;
+      onStatus?.('live');
     };
     socket.onmessage = (evt) => {
       try {
@@ -586,6 +600,7 @@ export function subscribeToStream(onEvent: (event: StreamEvent) => void) {
     socket.onclose = () => {
       if (closed) return;
       attempts += 1;
+      onStatus?.('reconnecting');
       const delay = Math.min(1000 * 2 ** Math.min(attempts, 5), 15000);
       retryTimer = setTimeout(connect, delay);
     };
@@ -597,5 +612,6 @@ export function subscribeToStream(onEvent: (event: StreamEvent) => void) {
     closed = true;
     if (retryTimer) clearTimeout(retryTimer);
     socket?.close();
+    onStatus?.('offline');
   };
 }

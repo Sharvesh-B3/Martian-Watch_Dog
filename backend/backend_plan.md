@@ -70,7 +70,7 @@ Decisions already agreed:
 **Goal:** low-risk auto actions, high-risk pending approvals, approval publishes containment.
 
 - [x] Add `backend/app/hitl_engine.py`: `handle_signals()` consumes `AgentResult`, auto-executes low-risk actions (warning + rate_limited/drop_sample flags + `AUTO_ACTION_EXECUTED` audit) and queues high-risk containment as pending `ApprovalRequest` targeting the first correlated device with `HITL_APPROVAL_REQUESTED` audit.
-- [x] `decide(approval_id, decision)`: on approve publish `QUARANTINE` to the target device and `DECOY` to the separate `decoy_twin_01`, mark the target quarantined, activate the twin with `active_traps=1`/`captured_payloads=0`, update approval/incident, and write `APPROVAL_APPROVED` + `DECOY_ACTIVATED` audits; on reject only update records and write `APPROVAL_REJECTED`.
+- [x] `decide(approval_id, decision)`: on approve require confirmation from the L4 containment gateway, disconnect the attacker session, switch the stable endpoint to the decoy broker, publish `QUARANTINE` to the target and `DECOY` to `decoy_twin_01`, then write approval, decoy and `NETWORK_REROUTE_APPLIED` audits. Gateway failure leaves the approval pending and writes `NETWORK_REROUTE_FAILED`.
 - [x] Broadcast `new_approval`, `new_incident`, `device_update` and `audit_entry` for every state transition.
 - [x] Add `backend/tests/test_hitl_engine.py` with a fake MQTT publisher.
 - [x] Verify: `python -m pytest -q backend/tests` → green with fake publisher; live sim console check deferred to Phase 8 (broker unavailable locally).
@@ -100,7 +100,7 @@ Decisions already agreed:
 **Goal:** the 3-minute qualification demo works against live services.
 
 - [x] Full service path verified with Mosquitto, sim devices, backend REST/WebSocket and live frontend contract against direct Gemini using a rotated local-only key; the same smoke also passes with the local OpenAI-compatible test provider.
-- [x] `python -m pytest -q backend/tests sim/tests` → **80 passed** across backend and Role 1 simulation coverage.
+- [x] `python -m pytest -q backend/tests sim/tests` → **85 passed** across backend, gateway and Role 1 simulation coverage.
 - [x] Trigger all three attacks via `POST /api/sim/trigger`; WS client receives all four event types; approval decision activates quarantine/decoy in backend state.
 - [x] Confirm sim console prints `door_lock_01 -> QUARANTINED` and `decoy_twin_01 -> DECOY`.
 - [x] Persistence verified by reopening the same SQLite DB in a fresh FastAPI app instance; live server restart deferred.

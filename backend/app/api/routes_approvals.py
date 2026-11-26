@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 
+from backend.app.containment_gateway import ContainmentGatewayError
 from backend.app.schemas import DecisionRequest
 
 router = APIRouter(prefix="/api", tags=["approvals"])
@@ -32,7 +33,10 @@ def decide_approval(
     if current.status != "pending":
         raise HTTPException(status_code=409, detail="Approval already decided")
 
-    updated = request.app.state.hitl.decide(approval_id, body.decision)
+    try:
+        updated = request.app.state.hitl.decide(approval_id, body.decision)
+    except ContainmentGatewayError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     if updated is None:
         raise HTTPException(status_code=404, detail="Approval not found")
     return {"ok": True, "id": updated.id, "status": updated.status}

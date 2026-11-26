@@ -24,6 +24,7 @@ INTERNAL_TOPIC_SEGMENTS = (
     "/redteam/",
     "/attacker/",
     "/decoy/capture",
+    "/environment",
 )
 
 

@@ -14,6 +14,7 @@ from backend.app.api.routes_incidents import router as incidents_router
 from backend.app.api.routes_stream import router as stream_router
 from backend.app.audit_db import AuditDB
 from backend.app.config import get_settings
+from backend.app.containment_gateway import ContainmentGatewayClient
 from backend.app.correlation_window import CorrelationWindow
 from backend.app.hitl_engine import HitlEngine
 from backend.app.llm_client import LLMUnavailable, build_llm_client
@@ -29,7 +30,8 @@ window = CorrelationWindow(settings.WINDOW_SECONDS)
 bridge = MqttBridge(settings, hub, window)
 db = AuditDB(settings.DB_PATH)
 agent = Agent(db, bridge, hub, build_llm_client(settings))
-hitl = HitlEngine(db, bridge, hub)
+gateway = ContainmentGatewayClient(settings)
+hitl = HitlEngine(db, bridge, hub, gateway)
 
 
 @asynccontextmanager
@@ -42,6 +44,7 @@ async def lifespan(app: FastAPI):
     app.state.db = db
     app.state.agent = agent
     app.state.hitl = hitl
+    app.state.gateway = gateway
     loop = asyncio.get_running_loop()
     pipeline_requested = asyncio.Event()
 

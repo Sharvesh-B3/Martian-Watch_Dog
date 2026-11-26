@@ -9,6 +9,9 @@ All MQTT traffic stays in an isolated local lab:
 - Mosquitto is bound to `127.0.0.1:1883` only (`docker-compose.yml`).
 - Telemetry topic prefix: `campus/lab1/#`.
 - Control topics: `campus/lab1/control/+`.
+- Attacker endpoint: `127.0.0.1:1884` (containment gateway).
+- Decoy broker: `127.0.0.1:1885`.
+- Gateway control/status: `127.0.0.1:9000`.
 - No real facility network or production device is involved.
 - Sim device IDs are translated to canonical frontend IDs by `backend/app/mqtt_client.py`.
 
@@ -46,8 +49,9 @@ source .venv/bin/activate
 python -m sim.run_lab --seed 42 --no-noise --monitor
 ```
 
-The launcher starts Mosquitto, six independent device processes and the
-persistent Red Team controller. Ctrl+C stops every child and the broker it
+The launcher starts real and decoy Mosquitto brokers, the L4 containment
+gateway, a synthetic network attacker, six independent device processes and the
+persistent Red Team controller. Ctrl+C stops every child and the brokers it
 started. Add `--noise 0.25` for seeded metric drift or `--keep-broker` to leave
 Mosquitto running after the lab exits.
 
@@ -83,10 +87,28 @@ python -m sim.attacks.red_team
 
 Option 1 emits CCTV loss, an unauthorized door unlock and port-scan evidence as
 one coordinated intrusion. Approved containment quarantines `door_lock_01` and
-activates the separate `decoy_twin_01` simulator. Attack evidence remains active
-until the Red Team menu publishes reset (`r`) or a device receives RESTORE.
-While active, the Decoy Twin captures synthetic attacker probes and streams its
-capture count and safe payload hashes to the dashboard.
+activates the separate `decoy_twin_01` simulator. The containment gateway then
+disconnects the attacker TCP session and changes the same gateway endpoint from
+the real broker to the decoy broker. Attack evidence remains active until the
+Red Team menu publishes reset (`r`) or a device receives RESTORE. While active,
+the Decoy Twin captures the actually rerouted MQTT probes and streams gateway
+bytes, reconnect count, capture count and safe payload hashes to the dashboard.
+
+Gateway status is independently visible at:
+
+```bash
+curl http://127.0.0.1:9000/status
+```
+
+Before approval `route_target` is `real`. After approval it is `decoy`, the
+attacker reconnect count increases and `decoy_bytes` begins increasing. Restore
+the real route with:
+
+```bash
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"incident_id":"RESTORE"}' \
+  http://127.0.0.1:9000/route/real
+```
 
 ## 4. Integration contract
 
@@ -103,7 +125,7 @@ capture count and safe payload hashes to the dashboard.
 
 1. Toggle Agent **BYPASSED**, trigger Coordinated Intrusion → unmitigated incident plus `UNMITIGATED_BREACH` audit.
 2. Toggle Agent **ACTIVE**, trigger Prompt Injection → guardrail flags the payload, low-risk auto action emits a warning and audit.
-3. Trigger Coordinated Intrusion, approve the pending request → `QUARANTINE` and `DECOY` appear in the sim console, Decoy Twin becomes active, and approval/decoy audits appear in the log.
+3. Trigger Coordinated Intrusion, approve the pending request → the attacker terminal changes from `REAL_LAB` to `DECOY_LAB`, the lock is quarantined, gateway `decoy_bytes` increases, Decoy Twin captures traffic, and the frontend shows **Network reroute applied**.
 
 Distinct breaches inside the same 60-second correlation window are emitted as
 separate incidents; duplicate MQTT echoes of one attack remain deduplicated.

@@ -1,6 +1,7 @@
 """LLM provider adapter: direct Gemini API or local OpenAI-compatible endpoint."""
 
 import re
+import time
 from typing import Any, Protocol, cast, runtime_checkable
 
 import httpx
@@ -114,23 +115,45 @@ class GeminiClient:
         self._api_key = cast(str, settings.GEMINI_API_KEY)
         self._model = settings.GEMINI_MODEL
         self._timeout = settings.LLM_TIMEOUT_SECONDS
+        self._max_retries = max(0, int(getattr(settings, "LLM_MAX_RETRIES", 2)))
 
     def reason(self, prompt: str) -> AgentDecision:
         url = f"{GEMINI_BASE_URL}/models/{self._model}:generateContent"
-        try:
-            response = httpx.post(
-                url,
-                json=_gemini_request_body(prompt),
-                headers={
-                    "x-goog-api-key": self._api_key,
-                    "Content-Type": "application/json",
-                },
-                timeout=self._timeout,
-            )
-            response.raise_for_status()
-            return _parse_decision(_extract_gemini_text(response.json()))
-        except Exception as exc:
-            raise LLMUnavailable(f"Gemini LLM reasoning failed: {exc}") from exc
+        last_error: Exception | None = None
+        for attempt in range(self._max_retries + 1):
+            try:
+                response = httpx.post(
+                    url,
+                    json=_gemini_request_body(prompt),
+                    headers={
+                        "x-goog-api-key": self._api_key,
+                        "Content-Type": "application/json",
+                    },
+                    timeout=self._timeout,
+                )
+                response.raise_for_status()
+                return _parse_decision(_extract_gemini_text(response.json()))
+            except Exception as exc:
+                last_error = exc
+                status = (
+                    exc.response.status_code
+                    if isinstance(exc, httpx.HTTPStatusError)
+                    else None
+                )
+                retryable = isinstance(exc, httpx.RequestError) or status in {
+                    429,
+                    500,
+                    502,
+                    503,
+                    504,
+                }
+                if not retryable or attempt >= self._max_retries:
+                    break
+                time.sleep(0.5 * (2**attempt))
+        raise LLMUnavailable(
+            f"Gemini LLM reasoning failed after {self._max_retries + 1} attempts: "
+            f"{last_error}"
+        ) from last_error
 
 
 class LocalOpenAIClient:
@@ -149,6 +172,7 @@ class LocalOpenAIClient:
                         {"role": "system", "content": SYSTEM_INSTRUCTION},
                         {"role": "user", "content": prompt},
                     ],
+                    "temperature": 0,
                     "response_format": {"type": "json_object"},
                 },
                 timeout=self._timeout,

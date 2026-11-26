@@ -4,6 +4,11 @@ from collections.abc import Iterable
 
 from backend.app.agent import AgentResult
 from backend.app.audit_db import AuditDB
+from backend.app.containment_gateway import (
+    ContainmentGateway,
+    ContainmentGatewayError,
+    TestContainmentGateway,
+)
 from backend.app.mqtt_client import MqttBridge
 from backend.app.schemas import (
     Actor,
@@ -25,10 +30,17 @@ DECOY_METRICS = {"active_traps": 1, "captured_payloads": 0}
 class HitlEngine:
     """Applies low-risk actions and gates high-risk containment behind approval."""
 
-    def __init__(self, db: AuditDB, bridge: MqttBridge, hub: StreamHub) -> None:
+    def __init__(
+        self,
+        db: AuditDB,
+        bridge: MqttBridge,
+        hub: StreamHub,
+        gateway: ContainmentGateway | None = None,
+    ) -> None:
         self._db = db
         self._bridge = bridge
         self._hub = hub
+        self._gateway = gateway or TestContainmentGateway()
 
     def handle_signals(
         self, results: Iterable[AgentResult]
@@ -112,6 +124,16 @@ class HitlEngine:
 
     def _approve(self, approval: ApprovalRequest) -> ApprovalRequest | None:
         target = approval.target_device_id
+        try:
+            route = self._gateway.route_to_decoy(approval.incident_id)
+        except ContainmentGatewayError as exc:
+            self._audit(
+                Actor.SYSTEM,
+                "NETWORK_REROUTE_FAILED",
+                f"Approval {approval.id} remains pending: {exc}",
+            )
+            raise
+
         self._bridge.publish_control(target, "QUARANTINE")
         self._bridge.publish_control("decoy_twin_01", "DECOY")
         self._bridge.set_device_status(target, DeviceStatus.QUARANTINED)
@@ -132,6 +154,15 @@ class HitlEngine:
             Actor.AI_AGENT,
             "DECOY_ACTIVATED",
             f"Decoy Twin activated for traffic from {target}.",
+        )
+        self._audit(
+            Actor.SYSTEM,
+            "NETWORK_REROUTE_APPLIED",
+            (
+                f"Gateway switched to {route.upstream}; disconnected "
+                f"{route.disconnected_sessions} attacker session(s); "
+                f"real_bytes={route.real_bytes}, decoy_bytes={route.decoy_bytes}."
+            ),
         )
         return updated
 

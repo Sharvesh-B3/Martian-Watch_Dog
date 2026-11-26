@@ -133,6 +133,31 @@ def test_gemini_failure_maps_to_llm_unavailable(monkeypatch) -> None:  # noqa: A
         client.reason("telemetry prompt")
 
 
+def test_gemini_retries_transient_service_failure(monkeypatch) -> None:  # noqa: ANN001
+    attempts = 0
+
+    def fake_post(url: str, *, json: dict, headers: dict, timeout: float) -> FakeResponse:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return FakeResponse(
+                error=httpx.HTTPStatusError(
+                    "503 Service Unavailable",
+                    request=httpx.Request("POST", url),
+                    response=httpx.Response(503),
+                )
+            )
+        return FakeResponse(gemini_payload())
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr("backend.app.llm_client.time.sleep", lambda _: None)
+
+    result = GeminiClient(gemini_settings()).reason("telemetry prompt")  # type: ignore[arg-type]
+
+    assert attempts == 2
+    assert result.sense == "s"
+
+
 @pytest.mark.parametrize(
     ("payload", "message"),
     [
@@ -175,6 +200,7 @@ def test_local_client_appends_chat_completions(monkeypatch) -> None:  # noqa: AN
 
     assert captured["url"] == "http://127.0.0.1:11434/v1/chat/completions"
     assert captured["json"]["model"] == "local-model"
+    assert captured["json"]["temperature"] == 0
     assert captured["json"]["response_format"] == {"type": "json_object"}
     assert captured["timeout"] == 12.0
     assert result.category == "prompt_injection"

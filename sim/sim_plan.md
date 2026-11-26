@@ -11,6 +11,9 @@ Agreed decisions:
 - Telemetry is deterministic by default, with optional seeded noise.
 - Attack evidence remains active until containment, restore or reset.
 - Decoy Twin visibly captures synthetic attacker activity.
+- Approved containment performs a real loopback L4 route switch from the real
+  MQTT broker to a separate decoy broker and exposes independent byte/session
+  counters.
 - Existing `campus/lab1` topics and Role 1 device IDs remain compatible.
 - Frontend REST payloads, canonical IDs and WebSocket event types do not change.
 
@@ -190,6 +193,10 @@ scenario.
 - [x] Approval leaves the lock quarantined and activates the separate Decoy
   Twin.
 - [x] Decoy captures at least three synthetic probes during the demo.
+- [x] The same attacker endpoint reports `REAL_LAB` before approval and
+  `DECOY_LAB` after a forced TCP reconnect.
+- [x] Gateway `real_bytes` stops and `decoy_bytes` increases after approval.
+- [x] Restore switches the gateway back to the real broker.
 - [x] Ctrl+C leaves no simulator process or broker started by the launcher.
 
 ---
