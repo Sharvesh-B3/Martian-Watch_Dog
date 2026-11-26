@@ -351,6 +351,25 @@ h3 {
   grid-template-columns: 252px minmax(0, 1fr) 316px;
 }
 
+.right-rail {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--s-4);
+  overflow-y: auto;
+}
+
+.right-rail > * {
+  flex: 0 0 auto;
+}
+
+.right-rail .decision-panel,
+.right-rail .containment-proof {
+  max-height: none;
+  overflow: visible;
+}
+
 .mobile-view-switch {
   display: none;
 }
@@ -819,6 +838,44 @@ h3 {
   padding: var(--s-5);
   border-color: rgb(223 182 108 / 35%);
   overflow-y: auto;
+}
+
+.decision-status {
+  display: inline-flex;
+  margin-top: var(--s-3);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--p-surface-2);
+  color: var(--p-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.decision-status[data-status="approved"] {
+  background: rgb(159 199 184 / 14%);
+  color: var(--p-action);
+}
+
+.decision-status[data-status="rejected"] {
+  background: rgb(223 182 108 / 14%);
+  color: var(--p-warn, #b8792c);
+}
+
+.decision-panel--idle {
+  border-color: var(--p-line);
+}
+
+.decision-panel--idle .decision-panel__icon {
+  background: var(--p-surface-2);
+  color: var(--p-muted);
+}
+
+.decision-panel__copy {
+  color: var(--p-copy);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .containment-proof {
@@ -1376,7 +1433,7 @@ h3 {
   }
 
   .threat-workspace,
-  .decision-panel {
+  .right-rail {
     grid-column: 1;
   }
 
@@ -1510,15 +1567,11 @@ h3 {
 
   .operations-grid[data-mobile-view="threat"] .device-rail,
   .operations-grid[data-mobile-view="devices"] .threat-workspace,
-  .operations-grid[data-mobile-view="devices"] .decision-panel {
+  .operations-grid[data-mobile-view="devices"] .right-rail {
     display: none;
   }
 
-  .operations-grid[data-mobile-view="devices"] .containment-proof {
-    display: none;
-  }
-
-  .operations-grid[data-mobile-view="threat"] .decision-panel {
+  .operations-grid[data-mobile-view="threat"] .right-rail {
     order: 1;
   }
 
@@ -1527,8 +1580,7 @@ h3 {
   }
 
   .operations-grid > .threat-workspace,
-  .operations-grid > .decision-panel,
-  .operations-grid > .containment-proof,
+  .operations-grid > .right-rail,
   .operations-grid > .device-rail {
     max-height: none;
     flex: 0 0 auto;

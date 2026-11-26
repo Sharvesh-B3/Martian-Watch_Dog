@@ -48,7 +48,7 @@ export default function CommandCenter() {
   const rerouteConfirmed =
     decoyDevice?.metrics.route_target === 'decoy' &&
     decoyDevice.metrics.route_confirmed === true;
-  const hasRightPanel = Boolean(watchdog.activeApproval || rerouteConfirmed);
+  const panelApproval = watchdog.activeApproval ?? watchdog.approvals[0] ?? null;
 
   const selectDevice = (deviceId: string, moveToDevices = false) => {
     setSelectedDeviceId(deviceId);
@@ -78,7 +78,7 @@ export default function CommandCenter() {
           className="operations section"
           id="operations"
           data-mobile-view={mobileView}
-          data-has-decision={hasRightPanel}
+          data-has-decision="true"
         >
           <div className="app-wrap wrap">
           <ConnectionNotice
@@ -98,7 +98,7 @@ export default function CommandCenter() {
           ) : (
             <div
               className="operations-grid"
-              data-has-decision={hasRightPanel}
+              data-has-decision="true"
               data-mobile-view={mobileView}
             >
               <div className="mobile-view-switch" role="tablist" aria-label="Operations view">
@@ -135,17 +135,44 @@ export default function CommandCenter() {
                 onSelectDevice={(deviceId) => selectDevice(deviceId, true)}
               />
 
-              {watchdog.activeApproval && (
-                <DecisionPanel
-                  approval={watchdog.activeApproval}
-                  devices={watchdog.devices}
-                  pending={watchdog.decisionPending === watchdog.activeApproval.id}
-                  onDecision={watchdog.decide}
-                />
-              )}
-              {!watchdog.activeApproval && rerouteConfirmed && decoyDevice && (
-                <ContainmentProof decoy={decoyDevice} />
-              )}
+              <div className="right-rail">
+                {panelApproval ? (
+                  <DecisionPanel
+                    approval={panelApproval}
+                    devices={watchdog.devices}
+                    pending={
+                      panelApproval.status === 'pending' &&
+                      watchdog.decisionPending === panelApproval.id
+                    }
+                    replayPending={
+                      watchdog.simulationPending === 'coordinated_intrusion'
+                    }
+                    canReplay={watchdog.agentEnabled}
+                    onDecision={watchdog.decide}
+                    onReplay={() =>
+                      watchdog.triggerAttack('coordinated_intrusion')
+                    }
+                  />
+                ) : (
+                  <aside
+                    className="decision-panel decision-panel--idle"
+                    aria-labelledby="decision-heading"
+                  >
+                    <div className="decision-panel__icon" aria-hidden="true">
+                      <ShieldAlert size={23} />
+                    </div>
+                    <span className="section-kicker">Human approval standby</span>
+                    <h2 id="decision-heading">No decision required</h2>
+                    <p className="decision-panel__copy">
+                      High-risk containment requests will appear here with full
+                      context before any action executes.
+                    </p>
+                  </aside>
+                )}
+                {rerouteConfirmed && decoyDevice && (
+                  <ContainmentProof decoy={decoyDevice} />
+                )}
+              </div>
             </div>
           )}
           </div>
